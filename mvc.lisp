@@ -1,3 +1,4 @@
+#|
 
 (in-package :timesheet.mvc)
 
@@ -124,3 +125,4 @@
 (defmethod display (model view (output (eql nil)))
   (with-output-to-string (s)
     (display model view s)))
+|#

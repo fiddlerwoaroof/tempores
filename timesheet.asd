@@ -1,3 +1,4 @@
+(in-package :asdf-user)
 ;;;; timesheet.asd
 
 (asdf:defsystem #:timesheet
@@ -9,9 +10,14 @@
                #:anaphora
                #:ningle
                #:spinneret
-               )
+               #:should-test
+               #:fwoar.lisputils
+               #:smug
+               #:cells
+               #:manardb)
   :serial t
   :components ((:file "package")
+               (:file "parser")
                (:file "mvc")
                (:file "timesheet")))
 
