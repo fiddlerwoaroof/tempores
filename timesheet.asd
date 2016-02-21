@@ -14,9 +14,15 @@
                #:fwoar.lisputils
                #:smug
                #:cells
-               #:manardb)
+               #:ubiquitous
+               #:command-line-arguments
+               #:manardb
+               #:local-time-duration
+               )
   :serial t
   :components ((:file "package")
+               (:file "generic-equals")
+               (:file "macros")
                (:file "parser")
                (:file "mvc")
                (:file "timesheet")))

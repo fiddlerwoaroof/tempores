@@ -1,38 +1,7 @@
 (in-package #:timesheet.parser)
 
-(defgeneric == (a b)
-  (:method (a b) (eql a b))
-  (:method ((a list) (b list))
-   (if (or (null a) (null b))
-     (and (null a) (null b))
-     (and (== (car a) (car b))
-          (== (cdr a) (cdr b)))))
-  (:method ((a vector) (b vector)) (every #'identity (map 'vector #'== a b))))
-
-(defmacro make-equality (class &body test-defs &environment env)
-  `(defmethod == ((a ,class) (b ,class))
-     (declare (optimize (speed 3)))
-     (and ,@(loop for (slot . test) in test-defs
-                  with test-val = (or (car test) 'eql)
-                  collect `(,test-val (slot-value a ',slot)
-                                  (slot-value b ',slot))))))
-
-(defmacro make-simple-equality (class &key (test 'eql) &environment env)
-  (let ((class-def (find-class class t env)))
-    `(defmethod == ((a ,class) (b ,class))
-       (declare (optimize (speed 3)))
-       (and ,@(loop for slot in (closer-mop:class-direct-slots class-def)
-                    collect (let ((slot (closer-mop:slot-definition-name slot)))
-                              `(,test (slot-value a ',slot)
-                                      (slot-value b ',slot))))))))
-
-#|(defmacro make-equalities (&body defs)                        |#
-#|  `(progn                                                     |#
-#|     ,@(loop for (name test)  in defs                         |#
-#|             collect (list 'make-equality name :test test)))) |#
-
 (eval-when (:compile-toplevel :load-toplevel :execute)
-
+  ;; make sure these classes am ready to go!
   (defclass day-entry ()
     ((date :initarg :date)
      (records :initarg :records)))
@@ -92,26 +61,6 @@
 (make-simple-equality time-mod :test equal)
 
  
-(st:deftest == ()
-  (st:should be eql t (== #\1 #\1))
-  (st:should be eql t (== 1 1))
-  (st:should be eql t (== "1" "1"))
-  (st:should be eql t (== '("1") '("1")))
-  (st:should be eql t (== #("1") #("1")))
-  (st:should be eql t (== '(1 . 2) '(1 . 2)))
-  (st:should be eql t (== '((1 . 2)) '((1 . 2))))
-  (st:should be eql t
-             (== (make-time-mod 3 "mins")
-                 (make-time-mod 3 "mins"))) 
-  (st:should be eql t
-             (== (list (make-time-mod 3 "mins"))
-                 (list (make-time-mod 3 "mins"))))
-  (st:should be eql t
-             (== #((make-time-mod 3 "mins"))
-                 #((make-time-mod 3 "mins")))))
-
-
-
 (defun make-day-entry (date records)
   (make-instance 'day-entry :date date :records records))
 
@@ -135,15 +84,6 @@
 (defun make-time-obj (hour minute &optional second)
   (make-instance 'time-obj :hour hour :minute minute :second second))
 
-(defmacro defmethod-and-inverse (name (arga argb) &body body)
-  `(progn
-     (defmethod ,name (,arga ,argb)
-       (declare (optimize (speed 3)))
-       ,@body)
-     (defmethod ,name (,argb ,arga)
-       (declare (optimize (speed 3)))
-       ,@body)))
-
 (defmethod-and-inverse == ((date-obj date-obj) (list list))
   (with-slots (day-of-week year month day) date-obj
     (every #'== (list day-of-week year month day) list)))
@@ -152,40 +92,35 @@
   (with-slots (hour minute second) time-obj
     (every #'== (list hour minute second) list)))
 
-(defmacro define-printer ((obj stream &key (type t) (identity t)) &body body)
-  `(defmethod print-object ((,obj ,obj) ,stream)
-     (print-unreadable-object (,obj ,stream :type ,type :identity ,identity)
-       ,@body)))
-
 (define-printer (date-obj s)
-  (with-slots (day-of-week year month day) date-obj
-    (format s "~a, ~2,'0d/~2,'0d/~2,'0d" (subseq
-                                           (string-capitalize day-of-week)
-                                           0 3)
-            year month day)))
+  ((with-slots (day-of-week year month day) date-obj
+     (format s "~a, ~2,'0d/~2,'0d/~2,'0d"
+             (subseq (string-capitalize day-of-week) 0 3)
+             year month day)))
+  ((with-slots (day-of-week year month day) date-obj
+    (format s "~a, ~2,'0d/~2,'0d/~2,'0d"
+            (subseq (string-capitalize day-of-week) 0 3)
+            year month day))))
 
 (define-printer (time-obj s)
-  (with-slots (hour minute second) time-obj
-    (format s "~2,'0d:~2,'0d:~2,'0d"  hour minute second)))
+  ()
+  ((with-slots (hour minute second) time-obj
+    (format s "~2,'0d:~2,'0d:~2,'0d"  hour minute second))))
 
-(defmethod print-object ((obj day-entry) s)
-  (print-unreadable-object (obj s :type t :identity t)
-    (with-slots (date records) obj
-      (format s "~d records for ~s" (length records) date))))
+(define-printer (day-entry s)
+  ()
+  ((with-slots (date records) day-entry
+    (format s "~d records for ~s" (length records) date))))
 
-(defmethod print-object ((obj time-record) s)
-  (print-unreadable-object (obj s :type t :identity t)
-    (with-slots (client) obj
-      (format s "For ~s" client))))
+(define-printer (time-record s)
+  ()
+  ((with-slots (client) time-record
+    (format s "For ~s" client))))
 
-(defmethod print-object ((obj time-mod) s)
-  (print-unreadable-object (obj s :type t :identity t)
-    (with-slots (amount unit) obj
-      (format s "~s ~s" amount unit))))
-
-;; Time:
-;; 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
-;; [0-2][0-9]:[0-6][0-8]:[0-6][0-6]
+(define-printer (time-mod s)
+  ()
+  ((with-slots (amount unit) time-mod
+    (format s "~s ~s" amount unit))))
 
 (defun .digit ()
   (.is #'digit-char-p))
@@ -386,7 +321,10 @@
           (month (.month))
           (_ (.date-separator))
           (day (.day)))
-    (.identity (make-date-obj dow year month day))))
+    (let ((year (parse-integer year))
+          (month (parse-integer month))
+          (day (parse-integer day)))
+      (.identity (make-date-obj dow year month day)))))
 
 (defun .date-start ()
   (.string= "-- "))
@@ -571,3 +509,22 @@
 
   (st:should be == `((1 . ""))
              (run (.prog1 (.hour) (.not (.item))) "01")))
+
+(st:deftest == ()
+  (st:should be eql t (== #\1 #\1))
+  (st:should be eql t (== 1 1))
+  (st:should be eql t (== "1" "1"))
+  (st:should be eql t (== '("1") '("1")))
+  (st:should be eql t (== #("1") #("1")))
+  (st:should be eql t (== '(1 . 2) '(1 . 2)))
+  (st:should be eql t (== '((1 . 2)) '((1 . 2))))
+  (st:should be eql t
+             (== (make-time-mod 3 "mins")
+                 (make-time-mod 3 "mins"))) 
+  (st:should be eql t
+             (== (list (make-time-mod 3 "mins"))
+                 (list (make-time-mod 3 "mins"))))
+  (st:should be eql t
+             (== #((make-time-mod 3 "mins"))
+                 #((make-time-mod 3 "mins")))))
+
