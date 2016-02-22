@@ -69,7 +69,7 @@
   '((("client" #\c) :type boolean :optional t :documentation "Sort by client")
     (("reverse" #\r) :type boolean :optional t :documentation "Reverse sort")
     (("status" #\s) :type boolean :optional t
-                    :documentation "Print a summary of the hours worked and the prices")  
+                    :documentation "Print a summary of the hours worked and the prices")
     (("help" #\h) :type boolean :optional t :documentation "show help")))
 
 (defparameter *version* "0:1")
@@ -90,30 +90,33 @@
   (let ((clients (make-hash-table))
         (total-cost 0))
 
-    (flet ((record-client (client hours)
-             (let ((client (make-keyword (string-upcase client))))
-               (incf (gethash client clients 0) hours))))
-      (format t "~&~:{~4a ~10<~:(~a~)~> ~7,2F hrs  ~a~%~}" results)
+    (labels ((record-client (client hours)
+               (let ((client (make-keyword (string-upcase client))))
+                 (incf (gethash client clients 0) hours)))
+             (total-line (results)
+               (format nil "~26<Total~>:~7,2F hours @ ~7,2F $/hr = $~7,2F"
+                       (loop for (_ client time __) in results
+                             do (progn _ __)
+                             sum time
+                             do (record-client client time)
+                             do (incf total-cost (* time *rate*)))
+                       *rate*
+                       total-cost))
+             (fix-assoc (alist)
+               (mapcar (destructuring-lambda ((client . time))
+                         (list client time *rate* (* time *rate*)))
+                       alist)))
+
+      (format t "~&~:{~4a ~10<~:(~a~)~> ~7,2F hrs ~a~%~}" results)
       (when status
         (format t "~120,1,0,'-<~>")
-        (let ((total (format nil "~26<Total~>:~7,2F hours @ ~7,2F $/hr = $~7,2F"
-                             (loop for (_ client time __) in results
-                                   do (progn _ __)
-                                   sum time
-                                   do (record-client client time)
-                                   do (incf total-cost (* time *rate*)))
-                             *rate*
-                             total-cost)))
-          (flet ((fix-assoc (alist)
-                   (mapcar (destructuring-lambda ((client . time))
-                             (list client time *rate* (* time *rate*)))
-                           alist)))
-            (format t "~&~:{~:(~26<~a~>~):~7,2F hours @ ~7,2F $/hr = $~7,2F~%~}"
-                    (stable-sort
-                      (fix-assoc (hash-table-alist clients))
-                      #'string<
-                      :key (alambda (car it)))))
-          (format t total))))))   
+        (let ((total (total-line results)))
+          (format t "~&~:{~:(~26<~a~>~):~7,2F hours @ ~7,2F $/hr = $~7,2F~%~}"
+                  (stable-sort
+                    (fix-assoc (hash-table-alist clients))
+                    #'string<
+                    :key (alambda (car it))))
+          (format t total))))))
 
 (defun pprint-log (args &key client reverse status help)
   (when help

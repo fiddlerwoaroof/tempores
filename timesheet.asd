@@ -18,6 +18,9 @@
                #:command-line-arguments
                #:manardb
                #:local-time-duration
+               #:xhtmlambda
+               #:drakma
+               #:lquery
                )
   :serial t
   :components ((:file "package")

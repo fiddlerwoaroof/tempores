@@ -1,4 +1,9 @@
 ;;;; package.lisp
+(defpackage #:timesheet.packages
+  (:use #:cl))
+(in-package #:timesheet.packages)
+
+
 (defpackage #:generic-equals
   (:use #:cl)
   (:export #:==))
@@ -23,4 +28,10 @@
 (defpackage #:timesheet
   (:use #:cl #:anaphora #:alexandria #:serapeum #:fwoar.lisputils
         #:timesheet.parser))
+
+(defpackage #:timesheet.freshbooks
+  (:use #:cl #:anaphora #:alexandria #:serapeum #:fwoar.lisputils
+        #:timesheet.parser)
+  (:import-from #:timesheet #:timesheet)
+  (:export #:timesheet))
 
