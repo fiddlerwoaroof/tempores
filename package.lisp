@@ -28,10 +28,3 @@
 (defpackage #:timesheet
   (:use #:cl #:anaphora #:alexandria #:serapeum #:fwoar.lisputils
         #:timesheet.parser))
-
-(defpackage #:timesheet.freshbooks
-  (:use #:cl #:anaphora #:alexandria #:serapeum #:fwoar.lisputils
-        #:timesheet.parser)
-  (:import-from #:timesheet #:timesheet)
-  (:export #:timesheet))
-

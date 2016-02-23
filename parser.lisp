@@ -291,7 +291,7 @@
     (.identity (coerce (list fi se th fo) 'string))))
 
 (defun .first-month-char ()
-  (.or (.char= #\0) (.char= #\1)))
+  (.or (.char= #\0) (.char= #\1) (.char= #\2) (.char= #\3)))
 
 (defun .first-day-char ()
   (.or (.char= #\0) (.char= #\1) (.char= #\2) (.char= #\3)))
@@ -299,9 +299,12 @@
 (defun .month ()
   (.let* ((fi (.first-month-char))
           (se (.digit)))
-    (when (and (char= fi #\1) (not (member se '(#\1 #\2))))
-      (.fail))
-    (.identity (coerce (list fi se) 'string))) )
+    (let ((res (when (char= fi #\3)
+                 (unless (member se '(#\1 #\0))
+                   (.fail)))))
+      (if (not res)
+        (.identity (coerce (list fi se) 'string))
+        res))))
 
 (defun .day ()
   (.let* ((fi (.first-month-char))
@@ -417,6 +420,18 @@
                          . ""))
              (run (.range-list) (format nil "00:00:00--01:00:00,02:00:00--03:00:00~%")))
 
+  (st:should be == `(((((0 0 0) (1 0 0) ,(make-time-mod -10 "mins")) 
+                       ((2 0 0) (3 0 0))
+                       )
+                      . ""))
+             (run (.range-list) (format nil "00:00:00--01:00:00-10mins,02:00:00--03:00:00~%")))
+
+  (st:should be == `(((((0 0 0) (1 0 0) ,(make-time-mod 10 "mins"))  
+                       ((2 0 0) (3 0 0))
+                       )
+                      . ""))
+             (run (.range-list) (format nil "00:00:00--01:00:00+10mins,02:00:00--03:00:00~%")))
+
   (st:should be == '(((((0 0 0) (1 0 0))
                           ((2 0 0)))
                          . ""))
@@ -491,9 +506,11 @@
   (st:should be == nil
              (run (.first-hour-char) "-1"))
 
-  (loop for char in '(#\0 #\1 #\2)
-        do (st:should be == `((,char . ""))
-                      (run (.first-hour-char) (make-string 1 :initial-element char))))
+  (st:should be eq T
+          (every #'identity
+                 (loop for char in '(#\0 #\1 #\2)
+                       collect (== `((,char . ""))
+                                   (run (.first-hour-char) (make-string 1 :initial-element char))))))
 
   (st:should be == nil
              (run (.hour) "24"))
@@ -507,8 +524,67 @@
   (st:should be == nil
              (run (.hour) "aa"))
 
+  (st:should be == `((20 . ""))
+             (run (.prog1 (.hour) (.not (.item))) "20")) 
+
   (st:should be == `((1 . ""))
              (run (.prog1 (.hour) (.not (.item))) "01")))
+
+(should-test:deftest month-test ()
+  (st:should be == nil
+             (run (.first-month-char) "a"))
+  (st:should be == nil
+             (run (.first-month-char) "4"))
+  (st:should be == nil
+             (run (.first-month-char) "-1"))
+
+  (loop for char in '(#\0 #\1 #\2 #\3)
+        do (st:should be == `((,char . ""))
+                      (run (.first-month-char) (make-string 1 :initial-element char))))
+
+  (st:should be == nil
+             (run (.month) "32"))
+
+  (st:should be == nil
+             (run (.month) "71"))
+
+  (st:should be == nil
+             (run (.month) "0"))
+
+  (st:should be == nil
+             (run (.month) "aa"))
+
+  (st:should be == `(("30" . ""))
+             (run (.prog1 (.month) (.not (.item))) "30")) 
+  (st:should be == `(("20" . ""))
+             (run (.prog1 (.month) (.not (.item))) "20")) 
+  (st:should be == `(("10" . ""))
+             (run (.prog1 (.month) (.not (.item))) "10")) 
+  (st:should be == `(("01" . ""))
+             (run (.prog1 (.month) (.not (.item))) "01")))
+
+(st:deftest time-range-test ()
+  
+  (st:should be == nil
+             (run (.time-range) "00:00:00"))
+
+  (st:should be == `(( (,(make-time-obj 0 0 0)) . ""))
+             (run (.time-range) "00:00:00--"))
+
+  (st:should be == `(( (,(make-time-obj 0 0 0)) . ""))
+             (run (.time-range) "00:00--"))
+
+  (st:should be == `(((,(make-time-obj 0 0 0) ,(make-time-obj 1 0 0)) . ""))
+             (run (.time-range) "00:00:00--01:00:00"))
+
+  (st:should be == `(((,(make-time-obj 0 0 0) ,(make-time-obj 1 0 0)) . ""))
+             (run (.time-range) "00:00--01:00"))
+
+  (st:should be == `(((,(make-time-obj 0 0 0) ,(make-time-obj 1 0 0) ,(make-time-mod 10 "mins")) . ""))
+             (run (.time-range) "00:00--01:00+10mins"))
+
+  (st:should be == `(((,(make-time-obj 0 0 0) ,(make-time-obj 1 0 0) ,(make-time-mod -10 "mins")) . ""))
+             (run (.time-range) "00:00--01:00-10mins")))
 
 (st:deftest == ()
   (st:should be eql t (== #\1 #\1))

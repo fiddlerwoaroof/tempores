@@ -1,3 +1,9 @@
+(defpackage #:timesheet.freshbooks
+  (:use #:cl #:anaphora #:alexandria #:serapeum #:fwoar.lisputils
+        #:timesheet.parser)
+  (:import-from #:timesheet #:timesheet)
+  (:export #:timesheet))
+
 (in-package :timesheet.freshbooks)
 
 (defvar *api-key*)
