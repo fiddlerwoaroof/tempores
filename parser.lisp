@@ -57,7 +57,9 @@
 (make-simple-equality day-entry :test ==)
 (make-simple-equality time-record :test ==)
 (make-simple-equality time-obj :test eql)
-(make-simple-equality date-obj :test eql)
+(make-equality date-obj
+  (day-of-week eql)
+  (year) (month) (day))
 (make-simple-equality time-mod :test equal)
 
  
@@ -78,8 +80,21 @@
       (setf amount amnt unit unt)
       it)))
 
+(define-condition parse-error () ())
+
+(define-condition invalid-day-of-week (parse-error)
+  ((day-of-week :initarg :day-of-week :reader day-of-week))
+  (:report (lambda (condition stream)
+             (format stream "~s is not a valid day of the week"
+                     (day-of-week condition)))))
+
 (defun make-date-obj (day-of-week year month day)
-  (make-instance 'date-obj :day-of-week day-of-week :year year :month month :day day))
+  (let ((day-of-week (subseq day-of-week 0 3)))
+    (if (member day-of-week
+                '("Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun")
+                :test #'string-equal)
+      (make-instance 'date-obj :day-of-week day-of-week :year year :month month :day day)  
+      (error 'invalid-day-of-week :day-of-week day-of-week))))
 
 (defun make-time-obj (hour minute &optional second)
   (make-instance 'time-obj :hour hour :minute minute :second second))
@@ -103,22 +118,26 @@
             year month day))))
 
 (define-printer (time-obj s)
-  ()
+  ((with-slots (hour minute second) time-obj
+    (format s "~2,'0d:~2,'0d:~2,'0d"  hour minute second))) 
   ((with-slots (hour minute second) time-obj
     (format s "~2,'0d:~2,'0d:~2,'0d"  hour minute second))))
 
 (define-printer (day-entry s)
-  ()
+  ((with-slots (date records) day-entry
+    (format s "~d records for ~s" (length records) date))) 
   ((with-slots (date records) day-entry
     (format s "~d records for ~s" (length records) date))))
 
 (define-printer (time-record s)
-  ()
+  ((with-slots (client) time-record
+    (format s "For ~s" client))) 
   ((with-slots (client) time-record
     (format s "For ~s" client))))
 
 (define-printer (time-mod s)
-  ()
+  ((with-slots (amount unit) time-mod
+    (format s "~s ~s" amount unit))) 
   ((with-slots (amount unit) time-mod
     (format s "~s ~s" amount unit))))
 
@@ -314,20 +333,40 @@
     (.identity (coerce (list fi se) 'string))) )
 
 (defun .date-separator ()
-  (.char= #\-))
+  (.or (.char= #\-)
+       (.char= #\/)))
 
 (defun .date ()
   (.let* ((dow (.weekday))
+          (_ (.optional (.char= #\,)))
           (_ (.char= #\Space))
           (year (.year))
-          (_ (.date-separator))
+          (sep1 (.date-separator))
           (month (.month))
-          (_ (.date-separator))
+          (sep2 (.date-separator))
           (day (.day)))
     (let ((year (parse-integer year))
           (month (parse-integer month))
           (day (parse-integer day)))
       (.identity (make-date-obj dow year month day)))))
+
+(st:deftest date-test ()
+  
+  (st:should be == nil
+             (caar (smug:run (.date) "Monday 2020/01-01")))
+   
+
+  (st:should be == (make-date-obj "Monday" 2020 01 01)
+             (caar (smug:run (.date) "Monday, 2020-01-01")))
+   
+
+  (st:should be == (make-date-obj "Monday" 2020 01 01)
+             (caar (smug:run (.date) "Monday 2020-01-01")))
+   
+
+  (st:should be == (make-date-obj "Monday" 2020 01 01) 
+             (caar (smug:run (.date) "Monday 2020/01/01")))
+  )
 
 (defun .date-start ()
   (.string= "-- "))
@@ -348,9 +387,9 @@
 (defun .parse-all-records ()
   (.prog1 (.date-records) (.not (.item))))
 
-(defun parse (data)
-  (alet (run (.date-records) data)
-    (values (caar it) (cdar it))))
+#|(defun parse (data)|#
+#|  (alet (run (.date-records) data)|#
+#|    (values (caar it) (cdar it))))|#
 
 ;; This will help make sure everything is consumed when
 ;; we don't care about the parser's output.
@@ -594,6 +633,15 @@
   (st:should be eql t (== #("1") #("1")))
   (st:should be eql t (== '(1 . 2) '(1 . 2)))
   (st:should be eql t (== '((1 . 2)) '((1 . 2))))
+
+  (st:should be eql t
+             (== (make-date-obj "Monday" 2012 01 01)
+                 (make-date-obj "Monday" 2012 01 01)))
+
+  (st:should be eql t
+             (== (make-time-obj 00 00 00)
+                 (make-time-obj 00 00 00)))
+
   (st:should be eql t
              (== (make-time-mod 3 "mins")
                  (make-time-mod 3 "mins"))) 
