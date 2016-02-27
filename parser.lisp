@@ -80,9 +80,9 @@
       (setf amount amnt unit unt)
       it)))
 
-(define-condition parse-error () ())
+(define-condition parsing-error (parse-error) ())
 
-(define-condition invalid-day-of-week (parse-error)
+(define-condition invalid-day-of-week (parsing-error)
   ((day-of-week :initarg :day-of-week :reader day-of-week))
   (:report (lambda (condition stream)
              (format stream "~s is not a valid day of the week"

@@ -9,6 +9,15 @@
 (defvar *default-time-sheet-file*)
 (defvar *rate*)
 
+(defclass status-calculator ()
+  ((rate :initarg :rate :accessor rate)
+   (total-hours :initform 0 :initarg :total-hour :accessor total-hours)
+   (client-totals :initarg :client-totals :accessor client-totals)))
+
+(defclass status-line ()
+  ((client :initarg :client :accessor client)
+   (duration :initarg :duration :accessor duration :initform 0)))
+
 (defclass parsed-entry ()
   ((date :initarg :date :accessor date)
    (client :initarg :client :accessor client)
@@ -34,20 +43,7 @@
                  :memo memo
                  :start-times start-times))
 
-(defmacro /. (&rest body)
-  (let ((args '())
-        forms)
-    (loop for (head . tail) on body
-          until (eql head '->)
-          do (push head args)
-          finally (setf args (nreverse args))
-          finally (setf forms tail))
-    `(macrolet
-       ((>< (&rest form)
-          (list* (cadr form) (car form) (cddr form))))
-       (lambda ,args ,@forms))))
-
-(define-condition parse-error ()
+(define-condition parsing-error ()
   ((leftovers :initarg :leftovers :accessor leftovers))
   (:report (lambda (condition stream)
                (format stream "Parse error: ~20s leftover" (leftovers condition)))))
@@ -58,7 +54,7 @@
       (read-sequence dest s)
       (multiple-value-bind (parsed leftovers) (smug:parse (timesheet.parser::.date-records) dest)
         (unless (string= leftovers "")
-          (cerror "Continue?" 'parse-error :leftovers leftovers))
+          (cerror "Continue?" 'parsing-error :leftovers leftovers))
         parsed))))
 
 (defun unroll-date (date-obj)
@@ -147,23 +143,21 @@
     (hash-table-alist results)))
 
 (defgeneric print-entries (entries)
-  (:method ((incompletes list))
-   (format t "~&~120,1,0,'-<~>~%Partial Entries:~%")
-   (loop for (client . entries) in (group-by-client incompletes)
-         do  (loop for entry in entries
-                   do (format t "~&~4<~>~a, ~a:~%~{~12<~>one starting at ~a~%~}"
-                              (client entry)
-                              (memo entry)
-                              (mapcar
-                                (alambda (local-time:format-timestring
-                                           nil it
-                                           :format '(:year #\/ (:month 2) #\/ (:day 2) #\Space
-                                                     (:hour 2) #\: (:min 2) #\: (:sec 2))))
-                                (start-times entry)))))))
-
-(defclass status-calculator ()
-  ((clients :initform (make-hash-table) :accessor clients)
-   (total-cost :initform 0 :accessor total-cost)))
+  (:method ((entries list))
+   (mapcar #'print-entries entries))
+  (:method ((entry partial-entry))
+   (format t "~&~4<~>~a, ~a:~%~{~12<~>one starting at ~a~%~}"
+           (client entry)
+           (memo entry)
+           (mapcar
+             (alambda (local-time:format-timestring
+                        nil it
+                        :format '(:year #\/ (:month 2) #\/ (:day 2) #\Space
+                                  (:hour 2) #\: (:min 2) #\: (:sec 2))))
+             (start-times entry))))
+  (:method ((it complete-entry))
+   (format t "~&~4a ~10<~:(~a~)~> ~7,2F hrs ~a~%"
+           (date it) (client it) (duration it) (memo it))))
 
 (defgeneric record-client (calc client hours)
   (:method ((calc status-calculator) client hours)
@@ -171,53 +165,74 @@
       (incf (gethash client (clients calc) 0)
             hours))))
 
-(defgeneric total-line (calc results)
-  (:method ((calc status-calculator) results)
-   (with-accessors ((total-cost total-cost)) calc
+(defgeneric update (calculator entry)
+  (:method ((calculator status-calculator) entry)
+   (incf (total-hours calculator) (duration entry)))
+  (:method ((calculator status-line) entry)
+   (incf (duration calculator) (duration entry))))
+
+(defun update-clients (clients-hash-table entry)
+  (with-accessors ((client client)) entry
+    (update (ensure-gethash client clients-hash-table
+                            (make-instance 'status-line :client client)) 
+            entry)))
+
+(defun calculate-results (results &optional (rate *rate*))
+  (let ((status-calculator
+          (make-instance 'status-calculator
+                         :rate rate
+                         :client-totals (make-hash-table :test 'equalp))))
+    (prog1 status-calculator
+      (loop for entry in results
+            do (update-clients (client-totals status-calculator) entry)
+            do (update status-calculator entry)))))
+
+(defgeneric total-line (calc rate)
+  (:method ((calc status-calculator) rate)
+   (with-accessors ((total-hours total-hours)) calc
      (format nil "~26<Total~>:~7,2F hours @ ~7,2F $/hr = $~7,2F"
-             (loop for result in results
-                   do (record-client calc (client result) (duration result))
-                   do (incf total-cost (* (duration result) *rate*))
-                   sum (duration result))
-             *rate*
-             total-cost))))
+             total-hours rate (* rate total-hours)))))
+
+(defgeneric calculate-cost (calc time)
+  (:method ((calc status-calculator) (status-line status-line))
+   (* (rate calc) (duration status-line))))
 
 (defun print-status (results)
-  (let ((status-calculator (make-instance 'status-calculator)))
-    (flet ((fix-assoc (alist)
-             (mapcar (destructuring-lambda ((client . time))
-                       (list client
-                             time
-                             *rate*
-                             (* time *rate*)))
-                     alist)))
-      (let ((total (total-line status-calculator results)))
-        (format t "~&~120,1,0,'-<~>~%~:{~:(~26<~a~>~):~7,2F hours @ ~7,2F $/hr = $~7,2F~%~}"
-          (stable-sort (fix-assoc (hash-table-alist (clients status-calculator)))
-                       #'string<
-                       :key (alambda (car it))))
-        (format t total)))))
+  (let* ((status-calculator (calculate-results results)))
+    (flet ((print-status-line (status-line)
+             (format t "~&~:(~26<~a~>~):~7,2F hours @ ~7,2F $/hr = $~7,2F~%"
+                     (client status-line)
+                     (duration status-line)
+                     (rate status-calculator)
+                     (calculate-cost status-calculator status-line))))
+      (format t "~&~120,1,0,'-<~>~%")
+      (loop with client-totals = (client-totals status-calculator)
+            for  client in (sort (hash-table-keys client-totals) #'string-lessp)
+            for  status-line = (gethash client client-totals)
+            do (print-status-line status-line))
+      (format t (total-line status-calculator *rate*)))))
 
 (defun pprint-results (results incompletes status)
-  (format t "~&~:{~4a ~10<~:(~a~)~> ~7,2F hrs ~a~%~}"
-          (mapcar (alambda (list (date it) (client it) (duration it) (memo it)))
-                  results))
+  (print-entries results)
 
   (when incompletes
+    (format t "~&~120,1,0,'-<~>~%Partial Entries:~%")
     (print-entries incompletes))
 
   (when status
     (print-status results)))
 
-(defun group-by-class (list)
-  (loop with completes = '()
-        with partials  = '()
-        with complete-class = (find-class 'complete-entry)
-        with partial-class = (find-class 'partial-entry)
-        for el in list
-        when (eq (class-of el) complete-class) do (push el completes)
-        when (eq (class-of el) partial-class)  do (push el partials)
-        finally (return (values completes partials))))
+(defun group-by-class (list &optional accum1 accum2)
+  (tagbody ; Let's do some TCO ...
+    start
+    (if (null list)
+      (return-from group-by-class (list accum1 accum2))
+      (destructuring-bind (head . tail) list
+        (etypecase head
+          (complete-entry (setf accum1 (cons head accum1))) ; Here we set the accumulators
+          (partial-entry (setf accum2 (cons head accum2)))) ;  to the appropriate values.
+        (setf list tail) ; Here we step towards the terminating condition
+        (go start))))) ; Recurse
 
 (defun pprint-log (args &key client reverse status help)
   (when help
@@ -234,7 +249,7 @@
 
     (let ((*default-time-sheet-file* (or (car args) *default-time-sheet-file*))
           (*print-pretty* t))
-      (multiple-value-bind (complete-ranges incomplete-ranges) (group-by-class (get-log *default-time-sheet-file*))
+      (destructuring-bind (complete-ranges incomplete-ranges) (group-by-class (get-log *default-time-sheet-file*))
         (let ((complete-results (sort-results complete-ranges))
               (incomplete-results (sort-results incomplete-ranges t)))
           (pprint-results complete-results incomplete-results status))))))
