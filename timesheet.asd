@@ -28,6 +28,7 @@
                (:file "macros")
                (:file "parser")
                (:file "mvc")
+               (:file "main-classes")  
                (:file "timesheet")))
 
 
