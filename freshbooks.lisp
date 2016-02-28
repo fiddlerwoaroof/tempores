@@ -69,16 +69,16 @@
   tasks staff)
 
 (timesheet.macros:define-printer (task s)
-                                 ((with-slots (task_id name) task
-                                    (format s "~i~a (~a):" name task_id)))
-                                 ((with-slots (task_id name) task
-                                    (format s "~a (~a)" name task_id))))
+  ((with-slots (task_id name) task
+    (format s "~i~a (~a):" name task_id)))
+  ((with-slots (task_id name) task
+    (format s "~a (~a)" name task_id))))
 
 (timesheet.macros:define-printer (project s)
-                                 ((with-slots (project_id name tasks) project
-                                    (format s "~i~a (~a):~%~{~a~%~}" name project_id tasks)))
-                                 ((with-slots (project_id name tasks) project
-                                    (format s "~a (~a): ~a tasks" name project_id (length tasks)))))
+  ((with-slots (project_id name tasks) project
+    (format s "~i~a (~a):~%~{~a~%~}" name project_id tasks)))
+  ((with-slots (project_id name tasks) project
+    (format s "~a (~a): ~a tasks" name project_id (length tasks)))))
 
 (defparameter *task-registry* (make-hash-table :test 'equal))
 (defmethod initialize-instance :after ((self task) &key &allow-other-keys)
