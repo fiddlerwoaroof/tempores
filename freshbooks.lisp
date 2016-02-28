@@ -31,6 +31,9 @@
   `(defun ,name ,args
      (parsed-api-call (<:request (:method ,method-name) ,@elements))))
 
+(define-api-call create-time-entry (entry-spec) "time_entry.create"
+  entry-spec)
+
 (define-api-call list-invoices () "invoice.list")
 (define-api-call list-projects () "project.list")
 (define-api-call list-tasks () "task.list")
@@ -53,7 +56,7 @@
          ,(list*
             '(registry :initform (make-hash-table :test 'equal) :allocation :class)
             (loop for element in elements
-                collect `(,element :initarg ,(make-keyword element) :initform nil))))
+                  collect `(,element :initarg ,(make-keyword element) :initform nil))))
        (defclass ,schema-name ,schema-supers ())
        (defmethod slots-for append ((cls ,schema-name))
          ',elements))))
@@ -66,16 +69,16 @@
   tasks staff)
 
 (timesheet.macros:define-printer (task s)
-  ((with-slots (task_id name) task
-     (format s "~i~a (~a):" name task_id)))
-  ((with-slots (task_id name) task
-     (format s "~a (~a)" name task_id))))
+                                 ((with-slots (task_id name) task
+                                    (format s "~i~a (~a):" name task_id)))
+                                 ((with-slots (task_id name) task
+                                    (format s "~a (~a)" name task_id))))
 
 (timesheet.macros:define-printer (project s)
-  ((with-slots (project_id name tasks) project
-     (format s "~i~a (~a):~%~{~a~%~}" name project_id tasks)))
-  ((with-slots (project_id name tasks) project
-     (format s "~a (~a): ~a tasks" name project_id (length tasks)))))
+                                 ((with-slots (project_id name tasks) project
+                                    (format s "~i~a (~a):~%~{~a~%~}" name project_id tasks)))
+                                 ((with-slots (project_id name tasks) project
+                                    (format s "~a (~a): ~a tasks" name project_id (length tasks)))))
 
 (defparameter *task-registry* (make-hash-table :test 'equal))
 (defmethod initialize-instance :after ((self task) &key &allow-other-keys)
@@ -118,12 +121,12 @@
 
 (defun parse-project (parsed-xml)
   (apply #'make-instance 'project
-           (loop for slot in (slots-for (make-instance 'project-schema))
-                 nconc (let ((slot-name (format nil "> ~(~a~)" slot)))
-                         (list (make-keyword slot)
-                               (lquery:$ (inline parsed-xml)
-                                         slot-name
-                                         (node)))))))
+         (loop for slot in (slots-for (make-instance 'project-schema))
+               nconc (let ((slot-name (format nil "> ~(~a~)" slot)))
+                       (list (make-keyword slot)
+                             (lquery:$ (inline parsed-xml)
+                                       slot-name
+                                       (node)))))))
 
 (xhtmlambda::def-element <::time_entry)
 (xhtmlambda::def-element <::project_id)
@@ -167,7 +170,11 @@
 
 (defun timesheet-to-entries (timesheet-log)
   (let ((task-id (get-task-by-name "General")))
-    (loop for (date project hours note) in timesheet-log
+    (loop for entry in timesheet-log
+          for date = (timesheet::date entry)
+          for project = (timesheet::client entry)
+          for note = (timesheet::memo entry)
+          for hours = (timesheet::duration entry)
           for fmt-date = (format nil "~:@{~2,'0d-~2,'0d-~2,'0d~}"
                                  (reverse (timesheet::unroll-date date)))
           collect (make-time-entry project task-id fmt-date hours note))))
@@ -176,3 +183,29 @@
   (let ((updates (timesheet-to-entries (timesheet::get-log #p"/home/edwlan/bucket/time.md"))))
     (loop for update in updates
           collect (<:request (:method "time_entry.create") update))))
+
+(defmacro let-each ((&key (be '*)) &body forms)
+  `(let* ,(loop for form in forms
+           collect (list be form))
+     ,be))
+
+(defun post-time-entries-main ()
+  (init)
+  (setf *endpoint* (ubiquitous:value :freshbooks :api-key))
+  (setf *api-key* (ubiquitous:value :freshbooks :api-key))
+
+  (let-each (:be *)
+    (list-tasks)
+    (lquery:$ * "task")
+    (map 'list #'parse-task *)
+    (mapcar #'register-task *))
+
+  (let-each (:be *)
+    (list-projects)
+    (lquery:$ * "project")
+    (map 'list #'parse-project *)
+    (mapcar #'register-project *))
+
+  (let-each (:be *)
+    (make-entry-updates)
+    (mapcar #'parsed-api-call *)))

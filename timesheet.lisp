@@ -29,6 +29,11 @@
 (defclass partial-entry (parsed-entry)
   ((start-times :initarg :start-times :initform nil :accessor start-times)))
 
+(defcondition incomplete-entry-warning (warning) ())
+(defmethod duration ((obj partial-entry))
+  (warn "incomplete entry detected for ~a" (client obj))
+  (local-time-duration:duration))
+
 (defun make-complete-entry (date client memo duration)
   (make-instance 'complete-entry
                  :date date

@@ -62,7 +62,7 @@
   (year) (month) (day))
 (make-simple-equality time-mod :test equal)
 
- 
+
 (defun make-day-entry (date records)
   (make-instance 'day-entry :date date :records records))
 
@@ -93,7 +93,7 @@
     (if (member day-of-week
                 '("Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun")
                 :test #'string-equal)
-      (make-instance 'date-obj :day-of-week day-of-week :year year :month month :day day)  
+      (make-instance 'date-obj :day-of-week day-of-week :year year :month month :day day)
       (error 'invalid-day-of-week :day-of-week day-of-week))))
 
 (defun make-time-obj (hour minute &optional second)
@@ -119,25 +119,25 @@
 
 (define-printer (time-obj s)
   ((with-slots (hour minute second) time-obj
-    (format s "~2,'0d:~2,'0d:~2,'0d"  hour minute second))) 
+    (format s "~2,'0d:~2,'0d:~2,'0d"  hour minute second)))
   ((with-slots (hour minute second) time-obj
     (format s "~2,'0d:~2,'0d:~2,'0d"  hour minute second))))
 
 (define-printer (day-entry s)
   ((with-slots (date records) day-entry
-    (format s "~d records for ~s" (length records) date))) 
+    (format s "~d records for ~s" (length records) date)))
   ((with-slots (date records) day-entry
     (format s "~d records for ~s" (length records) date))))
 
 (define-printer (time-record s)
   ((with-slots (client) time-record
-    (format s "For ~s" client))) 
+    (format s "For ~s" client)))
   ((with-slots (client) time-record
     (format s "For ~s" client))))
 
 (define-printer (time-mod s)
   ((with-slots (amount unit) time-mod
-    (format s "~s ~s" amount unit))) 
+    (format s "~s ~s" amount unit)))
   ((with-slots (amount unit) time-mod
     (format s "~s ~s" amount unit))))
 
@@ -182,7 +182,7 @@
 
 (defun .time-unit ()
   (.or
-    (.string= "mins")  
+    (.string= "mins")
     (.string= "hrs")
     (.string= "min")
     (.string= "hr")))
@@ -207,7 +207,7 @@
 
 (defun .time-range ()
   (.let* ((start (.time))
-          (_ (.prog1 
+          (_ (.prog1
                (.time-range-separator)
                (.peek (.not (.char= #\,)))))
           (done (.optional (.time)))
@@ -351,20 +351,20 @@
       (.identity (make-date-obj dow year month day)))))
 
 (st:deftest date-test ()
-  
+
   (st:should be == nil
              (caar (smug:run (.date) "Monday 2020/01-01")))
-   
+
 
   (st:should be == (make-date-obj "Monday" 2020 01 01)
              (caar (smug:run (.date) "Monday, 2020-01-01")))
-   
+
 
   (st:should be == (make-date-obj "Monday" 2020 01 01)
              (caar (smug:run (.date) "Monday 2020-01-01")))
-   
 
-  (st:should be == (make-date-obj "Monday" 2020 01 01) 
+
+  (st:should be == (make-date-obj "Monday" 2020 01 01)
              (caar (smug:run (.date) "Monday 2020/01/01")))
   )
 
@@ -459,13 +459,13 @@
                          . ""))
              (run (.range-list) (format nil "00:00:00--01:00:00,02:00:00--03:00:00~%")))
 
-  (st:should be == `(((((0 0 0) (1 0 0) ,(make-time-mod -10 "mins")) 
+  (st:should be == `(((((0 0 0) (1 0 0) ,(make-time-mod -10 "mins"))
                        ((2 0 0) (3 0 0))
                        )
                       . ""))
              (run (.range-list) (format nil "00:00:00--01:00:00-10mins,02:00:00--03:00:00~%")))
 
-  (st:should be == `(((((0 0 0) (1 0 0) ,(make-time-mod 10 "mins"))  
+  (st:should be == `(((((0 0 0) (1 0 0) ,(make-time-mod 10 "mins"))
                        ((2 0 0) (3 0 0))
                        )
                       . ""))
@@ -564,7 +564,7 @@
              (run (.hour) "aa"))
 
   (st:should be == `((20 . ""))
-             (run (.prog1 (.hour) (.not (.item))) "20")) 
+             (run (.prog1 (.hour) (.not (.item))) "20"))
 
   (st:should be == `((1 . ""))
              (run (.prog1 (.hour) (.not (.item))) "01")))
@@ -594,16 +594,16 @@
              (run (.month) "aa"))
 
   (st:should be == `(("30" . ""))
-             (run (.prog1 (.month) (.not (.item))) "30")) 
+             (run (.prog1 (.month) (.not (.item))) "30"))
   (st:should be == `(("20" . ""))
-             (run (.prog1 (.month) (.not (.item))) "20")) 
+             (run (.prog1 (.month) (.not (.item))) "20"))
   (st:should be == `(("10" . ""))
-             (run (.prog1 (.month) (.not (.item))) "10")) 
+             (run (.prog1 (.month) (.not (.item))) "10"))
   (st:should be == `(("01" . ""))
              (run (.prog1 (.month) (.not (.item))) "01")))
 
 (st:deftest time-range-test ()
-  
+
   (st:should be == nil
              (run (.time-range) "00:00:00"))
 
@@ -644,7 +644,7 @@
 
   (st:should be eql t
              (== (make-time-mod 3 "mins")
-                 (make-time-mod 3 "mins"))) 
+                 (make-time-mod 3 "mins")))
   (st:should be eql t
              (== (list (make-time-mod 3 "mins"))
                  (list (make-time-mod 3 "mins"))))
