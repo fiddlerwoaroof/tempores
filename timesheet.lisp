@@ -1,4 +1,4 @@
-;;;; timesheet.lisp
+;; timesheet.lisp
 
 (in-package #:timesheet)
 
@@ -6,33 +6,20 @@
 
 ;;; "timesheet" goes here. Hacks and glory await!
 
+(defclass report ()
+  ((status-calculator :initarg :status-calculator :accessor status-calculator)
+   (status-lines :initform nil :accessor :status-lines)
+   (entries :initform nil :accessor :entries)))
+
 (defvar *default-time-sheet-file*)
 (defvar *rate*)
-
-(defmethod duration ((obj partial-entry))
-  (warn "incomplete entry detected for ~a" (client obj))
-  (local-time-duration:duration))
-
-(defun make-complete-entry (date client memo duration)
-  (make-instance 'complete-entry
-                 :date date
-                 :client client
-                 :memo memo
-                 :duration duration))
-
-(defun make-partial-entry (date client memo start-times)
-  (make-instance 'partial-entry
-                 :date date
-                 :client client
-                 :memo memo
-                 :start-times start-times))
 
 (defun parse-file (&optional (file *default-time-sheet-file*))
   (with-open-file (s file :direction :input)
     (let ((dest (make-string (file-length s))))
       (read-sequence dest s)
       (multiple-value-bind (parsed leftovers) (smug:parse (timesheet.parser::.date-records) dest)
-        (unless (string= leftovers "")
+        (unless (or (null leftovers) (string= leftovers ""))
           (cerror "Continue?" 'parsing-error :leftovers leftovers))
         parsed))))
 
@@ -41,30 +28,35 @@
     (list day month year)))
 
 (defun combine-date-time (time-obj day month year)
+  (declare (optimize (debug 3)))
   (with-slots (second minute hour) time-obj
     (local-time:encode-timestamp 0 second minute hour
                                  day month year)))
 
-(defun calculate-ranges (ranges year month day)
-  (flet ((time-mod-unit-keyword (time-mod)
-           (make-keyword
-             (string-upcase
-               (if (string= (slot-value time-mod 'unit) "mins")
-                 "minute"
-                 "hour")))))
-    (loop with complete = nil
-          with partial = nil
-          for (start-obj end-obj mod) in ranges
-          for start = (combine-date-time start-obj year month day)
-          for end = (when end-obj (combine-date-time end-obj year month day))
-          for time-mod = (when mod
-                           (let ((unit (time-mod-unit-keyword mod))
-                                 (amount (slot-value mod 'timesheet.parser:amount)))
-                             (funcall #'local-time-duration:duration unit amount)))
-          if end do (push (local-time-duration:timestamp-difference end start) complete)
-          else do (push start partial)
-          when time-mod do (push time-mod complete)
-          finally (return (values complete partial)))))
+(defun calculate-ranges (ranges date)
+  (declare (optimize (debug 3)))
+  (labels ((time-mod-unit-keyword (time-mod)
+             (make-keyword
+               (string-upcase
+                 (if (string= (slot-value time-mod 'unit) "mins")
+                   "minute"
+                   "hour"))))
+           (make-mod (mod)
+             (when mod
+               (let ((unit (time-mod-unit-keyword mod))
+                     (amount (slot-value mod 'timesheet.parser:amount)))
+                 (funcall #'local-time-duration:duration unit amount)))))
+    (with-slots (year month day) date
+      (loop with complete = nil
+            with partial = nil
+            for (start-obj end-obj mod) in ranges
+            for start = (combine-date-time start-obj day month year)
+            for end = (when end-obj (combine-date-time end-obj day month year))
+            for time-mod = (when mod (make-mod mod))
+            if end do (push (local-time-duration:timestamp-difference end start) complete)
+            else do (push start partial)
+            when time-mod do (push time-mod complete)
+            finally (return (values complete partial))))))
 
 (defun calculate-rounded-ranges (ranges)
   (flet ((calc-duration-in-15mins (duration)
@@ -75,24 +67,30 @@
       (reduce #'local-time-duration:duration+ ranges
         :initial-value (local-time-duration:duration)))))
 
+(defmacro list-or-null (test val)
+  `(when ,test
+     (list ,val)))
+
+(defclass log-entry ()
+  ((complete :initarg :complete)
+   (incomplete :initarg :incomplete)))
+
 (defun get-entry-ranges (entry)
-  (let ((date (slot-value entry 'date)))
-    (with-slots (year month day) date
-      (loop for record in (slot-value entry 'records)
-            append (with-slots (client memo ranges) record
-                     (multiple-value-bind (complete partial) (calculate-ranges ranges day month year)
-                       (list*
-                         (make-complete-entry date client memo (calculate-rounded-ranges complete))
-                         (when partial
-                           (list
-                             (make-partial-entry date client memo partial))))))))))
+  (flet ((make-entry (record)
+           (let ((date (slot-value entry 'date)))
+             (with-slots (client memo ranges) record
+               (multiple-value-bind (complete partial) (calculate-ranges ranges date)
+                 (list*
+                   (make-complete-entry date client memo (calculate-rounded-ranges complete))
+                   (list-or-null partial
+                                 (make-partial-entry date client memo partial))))))))
+    (let-each (:be *)
+      (slot-value entry 'records)
+      (mapcan #'make-entry *))))
 
 (defun get-log (&optional (file *default-time-sheet-file*))
-  (block nil
-     (let* ((entries (parse-file file)))
-       (loop for entry in entries
-             for ranges = (get-entry-ranges entry)
-             append ranges))))
+  (let* ((entries (parse-file file)))
+    (mapcan #'get-entry-ranges entries)))
 
 (defparameter +pprint-log-option-spec+
   '((("client" #\c) :type boolean :optional t :documentation "Sort by client")
@@ -118,77 +116,47 @@
 (defun group-by-client (incompletes)
   (let ((results (make-hash-table :test 'equalp)))
     (loop for incomplete in incompletes
-          do (push incomplete (gethash (client incomplete) results)))
+          for client = (client incomplete)
+          do (push incomplete (gethash client results)))
     (hash-table-alist results)))
 
-(defgeneric print-entries (entries)
-  (:method ((entries list))
-   (mapcar #'print-entries entries))
-  (:method ((entry partial-entry))
-   (format t "~&~4<~>~a, ~a:~%~{~12<~>one starting at ~a~%~}"
-           (client entry)
-           (memo entry)
-           (mapcar
-             (alambda (local-time:format-timestring
-                        nil it
-                        :format '(:year #\/ (:month 2) #\/ (:day 2) #\Space
-                                  (:hour 2) #\: (:min 2) #\: (:sec 2))))
-             (start-times entry))))
-  (:method ((it complete-entry))
-   (format t "~&~4a ~10<~:(~a~)~> ~7,2F hrs ~a~%"
-           (date it) (client it) (duration it) (memo it))))
-
-(defgeneric record-client (calc client hours)
-  (:method ((calc status-calculator) client hours)
-    (let ((client (make-keyword (string-upcase client))))
-      (incf (gethash client (clients calc) 0)
-            hours))))
-
-(defgeneric update (calculator entry)
-  (:method ((calculator status-calculator) entry)
-   (incf (total-hours calculator) (duration entry)))
-  (:method ((calculator status-line) entry)
-   (incf (duration calculator) (duration entry))))
-
-(defun update-clients (clients-hash-table entry)
-  (with-accessors ((client client)) entry
-    (update (ensure-gethash client clients-hash-table
-                            (make-instance 'status-line :client client)) 
-            entry)))
+(defun update-clients (status-calculator entry)
+  (flet ((ensure-client (client)
+           (ensure-gethash client 
+                           (client-totals status-calculator)
+                           (make-instance 'status-line :client client))))
+    (with-accessors ((client client)) entry
+      (let ((client-hash-table (ensure-client client)))
+        (update client-hash-table entry)))))
 
 (defun calculate-results (results &optional (rate *rate*))
-  (let ((status-calculator
-          (make-instance 'status-calculator
-                         :rate rate
-                         :client-totals (make-hash-table :test 'equalp))))
-    (prog1 status-calculator
-      (loop for entry in results
-            do (update-clients (client-totals status-calculator) entry)
-            do (update status-calculator entry)))))
+  (let-first (:be status-calculator) (make-status-calculator rate)
+    (dolist (result results)
+      (update-clients status-calculator result)
+      (update status-calculator result))))
 
-(defgeneric total-line (calc rate)
-  (:method ((calc status-calculator) rate)
-   (with-accessors ((total-hours total-hours)) calc
-     (format nil "~26<Total~>:~7,2F hours @ ~7,2F $/hr = $~7,2F"
-             total-hours rate (* rate total-hours)))))
-
-(defgeneric calculate-cost (calc time)
-  (:method ((calc status-calculator) (status-line status-line))
-   (* (rate calc) (duration status-line))))
-
+;;   Uses the first arg as a list. Adds 26 blanks to left
+(defparameter +status-line-format-string+ "~&~:@{~:(~26<~a~>~):~7,2F hours @ ~7,2F $/hr = $~7,2F~}~%") 
 (defun print-status (results)
   (let* ((status-calculator (calculate-results results)))
-    (flet ((print-status-line (status-line)
-             (format t "~&~:(~26<~a~>~):~7,2F hours @ ~7,2F $/hr = $~7,2F~%"
-                     (client status-line)
-                     (duration status-line)
-                     (rate status-calculator)
-                     (calculate-cost status-calculator status-line))))
-      (format t "~&~120,1,0,'-<~>~%")
-      (loop with client-totals = (client-totals status-calculator)
-            for  client in (sort (hash-table-keys client-totals) #'string-lessp)
-            for  status-line = (gethash client client-totals)
-            do (print-status-line status-line))
+    (labels ((status-line-format (&rest args)
+               (format t +status-line-format-string+ args))
+             (print-status-line (status-line)
+               (with-slots (client duration) status-line
+                 (status-line-format
+                   client
+                   duration
+                   (rate status-calculator)
+                   (calculate-cost status-calculator status-line))))
+             (print-separator ()
+               (format t "~&~120,1,0,'-<~>~%")))
+      (let ((client-totals (client-totals status-calculator)))
+        (print-separator)
+        (let-each (:be *)
+          (hash-table-keys client-totals)
+          (sort * #'string-lessp)
+          (dolist (client *)
+            (print-status-line (gethash client client-totals)))))
       (format t (total-line status-calculator *rate*)))))
 
 (defun pprint-results (results incompletes status)
@@ -228,10 +196,13 @@
 
     (let ((*default-time-sheet-file* (or (car args) *default-time-sheet-file*))
           (*print-pretty* t))
-      (destructuring-bind (complete-ranges incomplete-ranges) (group-by-class (get-log *default-time-sheet-file*))
-        (let ((complete-results (sort-results complete-ranges))
-              (incomplete-results (sort-results incomplete-ranges t)))
-          (pprint-results complete-results incomplete-results status))))))
+      (let-each (:be *)
+        (get-log *default-time-sheet-file*)
+        (group-by-class *)
+        (destructuring-bind (complete-ranges incomplete-ranges) *
+          (let ((complete-results (sort-results complete-ranges client))
+                (incomplete-results (sort-results incomplete-ranges t)))
+            (pprint-results complete-results incomplete-results status)))))))
 
 (defun pprint-log-main (argv)
   (setf *rate* (ubiquitous:defaulted-value 0 :rate)

@@ -184,14 +184,9 @@
     (loop for update in updates
           collect (<:request (:method "time_entry.create") update))))
 
-(defmacro let-each ((&key (be '*)) &body forms)
-  `(let* ,(loop for form in forms
-           collect (list be form))
-     ,be))
-
-(defun post-time-entries-main ()
+(defun get-entry-data ()
   (init)
-  (setf *endpoint* (ubiquitous:value :freshbooks :api-key))
+  (setf *endpoint* (ubiquitous:value :freshbooks :endpoint))
   (setf *api-key* (ubiquitous:value :freshbooks :api-key))
 
   (let-each (:be *)
@@ -206,6 +201,9 @@
     (map 'list #'parse-project *)
     (mapcar #'register-project *))
 
+  (make-entry-updates))
+
+(defun post-time-entries-main ()
   (let-each (:be *)
-    (make-entry-updates)
+    (get-entry-data)
     (mapcar #'parsed-api-call *)))
