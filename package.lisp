@@ -27,4 +27,5 @@
 
 (defpackage #:timesheet
   (:use #:cl #:anaphora #:alexandria #:serapeum #:fwoar.lisputils
-        #:timesheet.parser))
+        #:timesheet.parser)
+  (:import-from #:format-string-builder #:define-message))

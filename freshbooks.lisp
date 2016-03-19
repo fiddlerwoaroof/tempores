@@ -153,9 +153,10 @@
 (defun make-time-entry (project task date hours notes)
   (<:time_entry ()
                 (<:project_id ()
-                              (slot-value (get-project project)
-                                          'project_id))
-                (<:task_id () (identity task))
+                              (parse-integer
+                                (slot-value (get-project project)
+                                            'project_id)))
+                (<:task_id () (parse-integer task))
                 (<:date () (identity date))
                 (<:hours () (identity hours))
                 (<:notes () (identity notes))))
@@ -175,7 +176,7 @@
           for project = (timesheet::client entry)
           for note = (timesheet::memo entry)
           for hours = (timesheet::duration entry)
-          for fmt-date = (format nil "~:@{~2,'0d-~2,'0d-~2,'0d~}"
+          for fmt-date = (format nil "~:@{~2,'0d-~2,'0d-~2,'0d 00:00:00~}"
                                  (reverse (timesheet::unroll-date date)))
           collect (make-time-entry project task-id fmt-date hours note))))
 

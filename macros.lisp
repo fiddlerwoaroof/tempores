@@ -4,7 +4,7 @@
   `(defmethod == ((a ,class) (b ,class))
      (declare (optimize (speed 3)))
      (and ,@(loop for (slot . test) in test-defs
-                  with test-val = (or (car test) 'eql)
+                  for test-val = (or (car test) 'eql)
                   collect `(,test-val (slot-value a ',slot)
                                       (slot-value b ',slot))))))
 

@@ -58,7 +58,7 @@
 (make-simple-equality time-record :test ==)
 (make-simple-equality time-obj :test eql)
 (make-equality date-obj
-  (day-of-week eql)
+  (day-of-week ==)
   (year) (month) (day))
 (make-simple-equality time-mod :test equal)
 
@@ -378,8 +378,8 @@
 
 (defun .date-record ()
   (.let* ((date (.date-line))
-         (records (.records)))
-    (.identity (make-day-entry date records))))
+          (records (.records)))
+         (.identity (make-day-entry date records))))
 
 (defun .date-records ()
   (.first (.map 'list (.date-record))))
@@ -625,7 +625,9 @@
   (st:should be == `(((,(make-time-obj 0 0 0) ,(make-time-obj 1 0 0) ,(make-time-mod -10 "mins")) . ""))
              (run (.time-range) "00:00--01:00-10mins")))
 
-(st:deftest == ()
+(st:deftest generic-eq ()
+  "Note: this really should be in the equality package with the name ==
+   should-test only checks tests for _internal_ symbols."
   (st:should be eql t (== #\1 #\1))
   (st:should be eql t (== 1 1))
   (st:should be eql t (== "1" "1"))
@@ -633,6 +635,7 @@
   (st:should be eql t (== #("1") #("1")))
   (st:should be eql t (== '(1 . 2) '(1 . 2)))
   (st:should be eql t (== '((1 . 2)) '((1 . 2))))
+  (st:should be eql t (== #1=(make-date-obj "Monday" 2020 01 01) #1#))
 
   (st:should be eql t
              (== (make-date-obj "Monday" 2012 01 01)

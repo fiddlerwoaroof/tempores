@@ -6,21 +6,22 @@
   :author "fiddlerwoaroof"
   :license "MIT"
   :depends-on (#:alexandria
-               #:serapeum
                #:anaphora
-               #:ningle
-               #:spinneret
-               #:should-test
-               #:fwoar.lisputils
-               #:smug
                #:cells
-               #:ubiquitous
                #:command-line-arguments
-               #:manardb
-               #:local-time-duration
-               #:xhtmlambda
                #:drakma
+               #:format-string-builder
+               #:fwoar.lisputils
+               #:local-time-duration
                #:lquery
+               #:manardb
+               #:ningle
+               #:serapeum
+               #:should-test
+               #:smug
+               #:spinneret
+               #:ubiquitous
+               #:xhtmlambda
                )
   :serial t
   :components ((:file "package")

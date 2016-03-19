@@ -6,6 +6,16 @@
 
 ;;; "timesheet" goes here. Hacks and glory await!
 
+(defmacro maybe-list (test &optional val)
+  "If both arguments passed, when test is true, return a list containing val or, when test is false, return nil.
+   If one argument passed, when test names something that is not a list, return a list containing it, otherwise
+   return nil."
+  (once-only (test)
+    (let ((test (if val test `(not (listp ,test))))
+          (val (if val val test)))
+      `(when ,test
+         (list ,val)))))
+
 (defclass report ()
   ((status-calculator :initarg :status-calculator :accessor status-calculator)
    (status-lines :initform nil :accessor :status-lines)
@@ -19,8 +29,11 @@
     (let ((dest (make-string (file-length s))))
       (read-sequence dest s)
       (multiple-value-bind (parsed leftovers) (smug:parse (timesheet.parser::.date-records) dest)
-        (unless (or (null leftovers) (string= leftovers ""))
-          (cerror "Continue?" 'parsing-error :leftovers leftovers))
+        (loop
+          (restart-case
+            (if (or (null leftovers) (string= leftovers ""))
+              (return parsed)
+              (cerror "Continue?" 'parsing-error :leftovers leftovers))))
         parsed))))
 
 (defun unroll-date (date-obj)
@@ -58,18 +71,16 @@
             when time-mod do (push time-mod complete)
             finally (return (values complete partial))))))
 
-(defun calculate-rounded-ranges (ranges)
-  (flet ((calc-duration-in-15mins (duration)
-           (let ((duration-in-minutes (local-time-duration:duration-as duration :minute)))
-             (coerce (/ (round duration-in-minutes 15) 4)
-                     'float))))
-    (calc-duration-in-15mins
-      (reduce #'local-time-duration:duration+ ranges
-        :initial-value (local-time-duration:duration)))))
+(defun calculate-duration-in-15mins (duration)
+  (let ((duration-in-minutes (local-time-duration:duration-as duration :minute)))
+    (coerce (/ (round duration-in-minutes 15) 4)
+            'float)))
 
-(defmacro list-or-null (test val)
-  `(when ,test
-     (list ,val)))
+(defun calculate-rounded-ranges (ranges)
+  (let-each (:be *)
+    (local-time-duration:duration)
+    (reduce #'local-time-duration:duration+ ranges :initial-value *)
+    (calculate-duration-in-15mins *)))
 
 (defclass log-entry ()
   ((complete :initarg :complete)
@@ -82,8 +93,8 @@
                (multiple-value-bind (complete partial) (calculate-ranges ranges date)
                  (list*
                    (make-complete-entry date client memo (calculate-rounded-ranges complete))
-                   (list-or-null partial
-                                 (make-partial-entry date client memo partial))))))))
+                   (maybe-list partial
+                               (make-partial-entry date client memo partial))))))))
     (let-each (:be *)
       (slot-value entry 'records)
       (mapcan #'make-entry *))))
@@ -95,13 +106,18 @@
 (defparameter +pprint-log-option-spec+
   '((("client" #\c) :type boolean :optional t :documentation "Sort by client")
     (("reverse" #\r) :type boolean :optional t :documentation "Reverse sort")
+    (("version" #\v) :type boolean :optional t :documentation "Version")
     (("status" #\s) :type boolean :optional t
                     :documentation "Print a summary of the hours worked and the prices")
     (("help" #\h) :type boolean :optional t :documentation "show help")))
 
-(defparameter *version* "0:1")
+(defparameter *version* "0:3")
+
+(define-message version-message (version)
+  (:own-line () "timesheet file parser, version " :str))
+
 (defun show-version ()
-  (format t "timesheet, common-lisp version ~a~%" *version*))
+  (version-message t *version*))
 
 (defun show-help ()
   (show-version)
@@ -122,7 +138,7 @@
 
 (defun update-clients (status-calculator entry)
   (flet ((ensure-client (client)
-           (ensure-gethash client 
+           (ensure-gethash client
                            (client-totals status-calculator)
                            (make-instance 'status-line :client client))))
     (with-accessors ((client client)) entry
@@ -135,19 +151,18 @@
       (update-clients status-calculator result)
       (update status-calculator result))))
 
-;;   Uses the first arg as a list. Adds 26 blanks to left
-(defparameter +status-line-format-string+ "~&~:@{~:(~26<~a~>~):~7,2F hours @ ~7,2F $/hr = $~7,2F~}~%") 
+(define-message status-line-format (client duration rate cost)
+  (:own-line ()
+    (:titlecase () (:rjust (26) :str))
+    ": " (:float 7 2) " hours @ " (:float 7 2) " $/hr = $" (:float 7 2)))
+
 (defun print-status (results)
   (let* ((status-calculator (calculate-results results)))
-    (labels ((status-line-format (&rest args)
-               (format t +status-line-format-string+ args))
-             (print-status-line (status-line)
+    (labels ((print-status-line (status-line)
                (with-slots (client duration) status-line
-                 (status-line-format
-                   client
-                   duration
-                   (rate status-calculator)
-                   (calculate-cost status-calculator status-line))))
+                 (status-line-format t client duration
+                                     (rate status-calculator)
+                                     (calculate-cost status-calculator status-line))))
              (print-separator ()
                (format t "~&~120,1,0,'-<~>~%")))
       (let ((client-totals (client-totals status-calculator)))
@@ -181,9 +196,13 @@
         (setf list tail) ; Here we step towards the terminating condition
         (go start))))) ; Recurse
 
-(defun pprint-log (args &key client reverse status help)
+(defun pprint-log (args &key client reverse status help version)
   (when help
     (show-help)
+    (return-from pprint-log))
+
+  (when version
+    (show-version)
     (return-from pprint-log))
 
   (flet ((sort-results (results &optional (client client))
@@ -194,10 +213,11 @@
              (setf results (nreverse results)))
            results))
 
-    (let ((*default-time-sheet-file* (or (car args) *default-time-sheet-file*))
+    (let ((*default-time-sheet-file* (or args *default-time-sheet-file*))
           (*print-pretty* t))
       (let-each (:be *)
-        (get-log *default-time-sheet-file*)
+        (loop for file in (ensure-list *default-time-sheet-file*)
+              append (get-log file))
         (group-by-class *)
         (destructuring-bind (complete-ranges incomplete-ranges) *
           (let ((complete-results (sort-results complete-ranges client))
