@@ -2,13 +2,12 @@
 
 (in-package #:timesheet)
 
-(ubiquitous:restore 'timesheet)
-
 ;;; "timesheet" goes here. Hacks and glory await!
 
 (defmacro maybe-list (test &optional val)
-  "If both arguments passed, when test is true, return a list containing val or, when test is false, return nil.
-   If one argument passed, when test names something that is not a list, return a list containing it, otherwise
+  "If both arguments passed, when test is true, return a list containing val
+   or, when test is false, return nil.  If one argument passed, when test names
+   something that is not a list, return a list containing it, otherwise
    return nil."
   (once-only (test)
     (let ((test (if val test `(not (listp ,test))))
@@ -23,18 +22,39 @@
 
 (defvar *default-time-sheet-file*)
 (defvar *rate*)
+(defparameter *interactive* nil)
 
-(defun parse-file (&optional (file *default-time-sheet-file*))
-  (with-open-file (s file :direction :input)
-    (let ((dest (make-string (file-length s))))
-      (read-sequence dest s)
-      (multiple-value-bind (parsed leftovers) (smug:parse (timesheet.parser::.date-records) dest)
-        (loop
-          (restart-case
-            (if (or (null leftovers) (string= leftovers ""))
-              (return parsed)
-              (cerror "Continue?" 'parsing-error :leftovers leftovers))))
-        parsed))))
+(defun parse-file (&optional (file *default-time-sheet-file*) ignore-whitespace-errors)
+  (flet ((parse-string (string)
+           (handler-bind ((timesheet.parser::invalid-whitespace
+                            (lambda (c) c
+                              (let ((extra-whitespace (timesheet.parser::failed-chunk c)))
+                                (if (or ignore-whitespace-errors
+                                        (when *interactive*
+                                          (y-or-n-p "Invalid extra whitespace ~s, truncate?" extra-whitespace)))
+                                  (smug:replace-invalid extra-whitespace "")
+                                  (progn (format t "~&Whitespace errors~%")
+                                         (abort))))))
+                            (timesheet.parser::invalid-time
+                              (lambda (c) c
+                                (let ((time (timesheet.parser::failed-chunk c)))
+                                  (if *interactive*
+                                    (progn
+                                      (format *query-io* "Invalid time ~a, replacement? " time)
+                                      (finish-output *query-io*)
+                                      (let ((replacement (read-line)))
+                                        (format t "~&Replacing ~s with ~s.~%---~%" time replacement)
+                                        (smug:replace-invalid time replacement)))
+                                    (progn
+                                      (format t "~&Time ~a is invalid.~%" time)
+                                      (abort)))))))
+             (smug:parse (timesheet.parser::.date-records) string))))
+    (multiple-value-bind (parsed leftovers) (parse-string (read-file-into-string file))
+      (loop
+          (if (or (null leftovers) (string= leftovers ""))
+            (return parsed)
+            (cerror "Continue?" 'parsing-error :leftovers leftovers)))
+      parsed)))
 
 (defun unroll-date (date-obj)
   (with-slots (year month day) date-obj
@@ -99,19 +119,21 @@
       (slot-value entry 'records)
       (mapcan #'make-entry *))))
 
-(defun get-log (&optional (file *default-time-sheet-file*))
-  (let* ((entries (parse-file file)))
+(defun get-log (&optional (file *default-time-sheet-file*) ignore-whitespace)
+  (let* ((entries (parse-file file ignore-whitespace)))
     (mapcan #'get-entry-ranges entries)))
 
 (defparameter +pprint-log-option-spec+
   '((("client" #\c) :type boolean :optional t :documentation "Sort by client")
     (("reverse" #\r) :type boolean :optional t :documentation "Reverse sort")
+    (("ignore-whitespace" #\W) :type boolean :optional t :documentation "Ignore whitespace errors in input")
+    (("interactive" #\i) :type boolean :optional t :documentation "Run Interactively")
     (("version" #\v) :type boolean :optional t :documentation "Version")
     (("status" #\s) :type boolean :optional t
                     :documentation "Print a summary of the hours worked and the prices")
     (("help" #\h) :type boolean :optional t :documentation "show help")))
 
-(defparameter *version* "0:3")
+(defparameter *version* "0:4")
 
 (define-message version-message (version)
   (:own-line () "timesheet file parser, version " :str))
@@ -126,8 +148,7 @@
 (defun sort-by-date (results)
   (stable-sort results #'local-time:timestamp<
                :key (alambda (apply #'local-time:encode-timestamp
-                                    (append '(0 0 0 0)
-                                            (unroll-date (date it)))))))
+                                    (list* 0 0 0 0 (unroll-date (date it)))))))
 
 (defun group-by-client (incompletes)
   (let ((results (make-hash-table :test 'equalp)))
@@ -196,7 +217,7 @@
         (setf list tail) ; Here we step towards the terminating condition
         (go start))))) ; Recurse
 
-(defun pprint-log (args &key client reverse status help version)
+(defun pprint-log (args &key client reverse status help version ignore-whitespace interactive)
   (when help
     (show-help)
     (return-from pprint-log))
@@ -211,26 +232,36 @@
              (setf results (stable-sort results #'string-lessp :key #'client)))
            (when reverse
              (setf results (nreverse results)))
-           results))
+           results)
+         (get-logs (files)
+           (loop for file in (ensure-list files)
+                 append (get-log file ignore-whitespace)) ))
 
     (let ((*default-time-sheet-file* (or args *default-time-sheet-file*))
+          (*interactive* interactive)
           (*print-pretty* t))
       (let-each (:be *)
-        (loop for file in (ensure-list *default-time-sheet-file*)
-              append (get-log file))
+        (get-logs *default-time-sheet-file*)
         (group-by-class *)
         (destructuring-bind (complete-ranges incomplete-ranges) *
           (let ((complete-results (sort-results complete-ranges client))
                 (incomplete-results (sort-results incomplete-ranges t)))
             (pprint-results complete-results incomplete-results status)))))))
 
+(defmacro with-timesheet-configuration (() &body body)
+  `(progn
+     (ubiquitous:restore 'timesheet)
+     (let ((*rate* (ubiquitous:defaulted-value 0 :rate))
+           (*default-time-sheet-file*
+             (ubiquitous:defaulted-value #p"~/time.md" :timesheet :file)))
+       ,@body)))
+
 (defun pprint-log-main (argv)
-  (setf *rate* (ubiquitous:defaulted-value 0 :rate)
-        *default-time-sheet-file* (ubiquitous:defaulted-value #p"~/time.md" :timesheet :file))
-  (command-line-arguments:handle-command-line
-    +pprint-log-option-spec+
-    'pprint-log
-    :command-line (cdr argv)
-    :name "timesheet"
-    :rest-arity t))
+  (with-timesheet-configuration ()
+    (command-line-arguments:handle-command-line
+      +pprint-log-option-spec+
+      'pprint-log
+      :command-line (cdr argv)
+      :name "timesheet"
+      :rest-arity t)))
 

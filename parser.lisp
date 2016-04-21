@@ -80,7 +80,14 @@
       (setf amount amnt unit unt)
       it)))
 
-(define-condition parsing-error (parse-error) ())
+(define-condition parsing-error (parse-error)
+  ((failed-chunk :initarg :failed-chunk :reader failed-chunk)))
+
+(define-condition invalid-whitespace (parsing-error) ()
+  (:report (lambda (condition stream)
+             (format stream "~s is invalid whitespace"
+                     (map 'list #'char-code (failed-chunk condition))))))
+
 
 (define-condition invalid-day-of-week (parsing-error)
   ((day-of-week :initarg :day-of-week :reader day-of-week))
@@ -155,30 +162,66 @@
 (defun .time-separator ()
   (.char= #\:))
 
+; TODO: consider adding one-digit hours
 (defun .hour ()
   (.let* ((f (.first-hour-char))
           (s (.digit)))
     (if (or (char/= f #\2) (member s '(#\0 #\1 #\2 #\3))) ;; make sure we don't get 24
-      (.identity (parse-integer (coerce (vector f s) 'string)))
+      (.identity (coerce (vector f s) 'string))
       (.fail))))
 
 (defun .minute-or-second ()
   (.let* ((f (.first-minute-char))
           (s (.digit)))
-    (.identity (parse-integer (coerce (vector f s) 'string)))))
+    (.identity (coerce (vector f s) 'string))))
 
 (defun .time-range-separator ()
   (.string= "--"))
 
-(defun .time ()
+(define-condition invalid-time (parsing-error) ()
+  (:report (lambda (condition stream)
+             (format stream "Not a valid time part ~s"
+                     (failed-chunk condition)))))
+
+(defun .valid-time ()
   (.let* ((hour (.hour))
           (_ (.time-separator))
           (minute (.minute-or-second))
-          #|(_ (.time-separator))|#
           (second (.optional
                     (.progn (.time-separator)
                             (.minute-or-second)))))
-    (.identity (make-time-obj hour minute (or second 0)))))
+    (.identity (list hour minute (if second second "0")))))
+
+(defun .invalid-time ()
+  (flet ((.non-time-character ()
+           (.map 'string
+                 (.and (.not (.or (.time-separator)
+                                  (.char= #\newline)
+                                  (.char= #\space)))
+                       (.item)))))
+    (.let* ((hour (.or (.hour)
+                       (.non-time-character)))
+            (_ (.time-separator))
+            (minute (.or (.minute-or-second)
+                         (.non-time-character)))
+            (second (.optional
+                      (.progn (.time-separator)
+                              (.or (.minute-or-second)
+                                   (.non-time-character))))))
+      (error 'invalid-time
+        :failed-chunk (concatenate 'string
+                                   (string hour) ":"
+                                   (string minute)
+                                   (if second
+                                     (concatenate 'string ":" (string second))
+                                     ""))))))
+
+(defun .time ()
+  (.let* ((time (.or (.valid-time) (.invalid-time))))
+    (.identity
+      (apply #'make-time-obj
+             (mapcar #'parse-integer
+                     time)))))
 
 (defun .time-unit ()
   (.or
@@ -243,8 +286,26 @@
         (.identity ranges)
         (.fail)))))
 
+(defun .whitespace-char ()
+  (.or (.char= #\tab) (.char= #\space)))
+
+(defun .whitespace ()
+  (.map 'string (.whitespace-char)))
+
+(defun .valid-initial-space ()
+  (.or (.string= (string #\tab))
+       (.string= "   ")))
+
+(defun .extra-whitespace ()
+  (.let* ((_ (.valid-initial-space))
+          (extra-space (.optional (.whitespace))))
+    (if extra-space
+      (error 'invalid-whitespace :failed-chunk extra-space)
+      (.fail))))  
+
 (defun .initial-space ()
-  (.string= "   "))
+  (.or (.extra-whitespace)
+       (.valid-initial-space)))
 
 (defun .time-line-start ()
   (.progn (.initial-space)
@@ -395,6 +456,31 @@
 ;; we don't care about the parser's output.
 (defun cdar-equal (a b) (== (cdar a) (cdar b)))
 
+(st:deftest initial-space ()
+  (st:should signal invalid-whitespace
+             (smug:parse (.initial-space) "    "))
+
+  (st:should signal invalid-whitespace
+             (smug:parse (.initial-space) (concatenate 'string
+                                                       (string #\tab)
+                                                       " ")))
+
+  (st:should signal invalid-whitespace
+             (smug:parse (.initial-space) (concatenate 'string
+                                                       (string #\tab)
+                                                       (string #\tab))))
+
+  (st:should signal invalid-whitespace
+             (smug:parse (.initial-space) (concatenate 'string
+                                                       (string #\tab)
+                                                       "      ")))
+
+  (st:should be == (string #\tab)
+             (smug:parse (.initial-space) (string #\tab)))
+
+  (st:should be == "   "
+             (smug:parse (.initial-space) "   ")))
+
 (st:deftest memo-test ()
   (st:should be == '(("asdf" . ""))
              (run (.client-name) "asdf:"))
@@ -434,7 +520,7 @@
   (st:should be == '((#\, . ""))
              (run (.range-list-separator) ","))
 
-  (st:should be == nil
+  (st:should signal invalid-time
              (run (.range-list) "30:00:00"))
 
   (st:should be == nil
@@ -496,10 +582,19 @@
        (run (.time-range) "00:00:00--01:00:00")))
 
 (should-test:deftest time-test ()
+  (st:should signal invalid-time
+             (run (.time) "00:0a:00"))
+
+  (st:should be == '(((0 0 0) . ""))
+             (handler-bind ((invalid-time
+                              (lambda (x) x
+                                (smug:replace-invalid "00:0a:00" "00:00:00"))))
+               (run (.time) "00:0a:00")))
+
   (st:should be == '((#\: . ""))
              (run (.time-separator) ":"))
 
-  (st:should be == nil
+  (st:should signal invalid-time
        (run (.time) "30:00:00"))
 
   (st:should be == '(((0 0 0) . ""))
@@ -533,7 +628,7 @@
   (st:should be == nil
              (run (.minute-or-second) "aa"))
 
-  (st:should be == `((1 . ""))
+  (st:should be == `(("01" . ""))
              (run (.minute-or-second) "01")))
 
 
@@ -563,10 +658,10 @@
   (st:should be == nil
              (run (.hour) "aa"))
 
-  (st:should be == `((20 . ""))
+  (st:should be == `(("20" . ""))
              (run (.prog1 (.hour) (.not (.item))) "20"))
 
-  (st:should be == `((1 . ""))
+  (st:should be == `(("01" . ""))
              (run (.prog1 (.hour) (.not (.item))) "01")))
 
 (should-test:deftest month-test ()

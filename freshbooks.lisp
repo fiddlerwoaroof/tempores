@@ -51,15 +51,16 @@
                                        (string-join
                                          (list (symbol-name super)
                                                "-schema"))))))
-    `(prog1
-       (defclass ,name ,supers
-         ,(list*
-            '(registry :initform (make-hash-table :test 'equal) :allocation :class)
-            (loop for element in elements
-                  collect `(,element :initarg ,(make-keyword element) :initform nil))))
-       (defclass ,schema-name ,schema-supers ())
-       (defmethod slots-for append ((cls ,schema-name))
-         ',elements))))
+    `(eval-when (:compile-toplevel :load-toplevel :execute)
+       (prog1
+         (defclass ,name ,supers
+           ,(list*
+              '(registry :initform (make-hash-table :test 'equal) :allocation :class)
+              (loop for element in elements
+                    collect `(,element :initarg ,(make-keyword element) :initform nil))))
+         (defclass ,schema-name ,schema-supers ())
+         (defmethod slots-for append ((cls ,schema-name))
+           ',elements)))))
 
 (define-simple-class task ()
   task_id name description billable rate)

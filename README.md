@@ -8,17 +8,32 @@ The file-format is this:
    Client Name: This is a memo.	
 ```
 
-Right now the parser is fairly fragile: it reads what it can and fails silently at the first 
-error.  Eventually there'll be better error-handling.
+The parser currently has some rudimentary error handling: it detects invalid indentation (i.e. the lines of
+a record do not begin with either a single tab or three spaces) and it detects invalid times.
+
+Additionally, if run in interactive mode `-i`, when it discovers invalid input, it will prompt for a replacement
+and attempt to correct the error.  Also, with `-W`, it should be able to recover from whitespace errors on its own.
+
+## Todo:
+
+- Expand error handling
+- Add alternative export formats
+- Add querying capabilities
+- Support some notion of sub-tasks
+
+## Examples:
 
 ```
 % ./timesheet -h
-timesheet, common-lisp version 0:1
-  -c --client                     boolean  Sort by client
-  -r --reverse                    boolean  Reverse sort
-  -s --status                     boolean  Print a summary of the hours worked and the prices
-  -h --help                       boolean  show help
-```
+timesheet file parser, version 0:4
+-c --client                     boolean  Sort by client
+-r --reverse                    boolean  Reverse sort
+-W --ignore-whitespace          boolean  Ignore whitespace errors in input
+-i --interactive                boolean  Run Interactively
+-v --version                    boolean  Version
+-s --status                     boolean  Print a summary of the hours worked and the prices
+-h --help                       boolean  show help
+``
 
 By default, it orders the log by dates.  With the `-r` option, it displays the dates in descending order:
 
