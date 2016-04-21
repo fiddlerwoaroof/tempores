@@ -33,7 +33,7 @@ timesheet file parser, version 0:4
 -v --version                    boolean  Version
 -s --status                     boolean  Print a summary of the hours worked and the prices
 -h --help                       boolean  show help
-``
+```
 
 By default, it orders the log by dates.  With the `-r` option, it displays the dates in descending order:
 
