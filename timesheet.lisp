@@ -24,6 +24,16 @@
 (defvar *rate*)
 (defparameter *interactive* nil)
 
+(defun try-fix-time (failed-time)
+  (let ((time-parts (split-sequence #\: failed-time)))
+    (destructuring-bind (hours minutes . optional-seconds) time-parts
+      (let ((hours (parse-integer hours))
+            (minutes (parse-integer minutes))
+            (seconds (parse-integer (or (car optional-seconds) "0"))))
+        (if (and (< hours 24) (< minutes 60) (< seconds 60))
+          (values (format nil "~2,'0d:~2,'0d:~2,'0d" hours minutes seconds) t)
+          (values nil nil))))))
+
 (defun parse-file (&optional (file *default-time-sheet-file*) ignore-whitespace-errors)
   (flet ((parse-string (string)
            (handler-bind ((timesheet.parser::invalid-whitespace
@@ -38,16 +48,22 @@
                             (timesheet.parser::invalid-time
                               (lambda (c) c
                                 (let ((time (timesheet.parser::failed-chunk c)))
-                                  (if *interactive*
-                                    (progn
-                                      (format *query-io* "Invalid time ~a, replacement? " time)
-                                      (finish-output *query-io*)
-                                      (let ((replacement (read-line)))
-                                        (format t "~&Replacing ~s with ~s.~%---~%" time replacement)
-                                        (smug:replace-invalid time replacement)))
-                                    (progn
-                                      (format t "~&Time ~a is invalid.~%" time)
-                                      (abort)))))))
+                                  (multiple-value-bind (new-value success) (try-fix-time time)
+                                    (when success
+                                      (progn (warn 'autocorrect-warning
+                                                   :old-value time
+                                                   :new-value new-value)
+                                             (smug:replace-invalid time new-value)))
+                                    (if *interactive*
+                                      (progn
+                                        (format *query-io* "Invalid time ~a, replacement? " time)
+                                        (finish-output *query-io*)
+                                        (let ((replacement (read-line)))
+                                          (format t "~&Replacing ~s with ~s.~%---~%" time replacement)
+                                          (smug:replace-invalid time replacement)))
+                                      (progn
+                                        (format t "~&Time ~a is invalid.~%" time)
+                                        (abort))))))))
              (smug:parse (timesheet.parser::.date-records) string))))
     (multiple-value-bind (parsed leftovers) (parse-string (read-file-into-string file))
       (loop

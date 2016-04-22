@@ -23,6 +23,13 @@
 (defclass partial-entry (parsed-entry)
   ((start-times :initarg :start-times :initform nil :accessor start-times)))
 
+(define-condition autocorrect-warning (warning)
+  ((old-value :initarg :old-value :accessor old-value)
+   (new-value :initarg :new-value :accessor new-value))
+  (:report (lambda (condition stream)
+             (with-slots (old-value new-value) condition
+               (format stream "Automatic correction made: ~s -> ~s" old-value new-value)))))
+
 (define-condition incomplete-entry-warning (warning) ()
   (:report (lambda (condition stream)
              (declare (ignore condition))
