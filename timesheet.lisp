@@ -139,28 +139,6 @@
   (let* ((entries (parse-file file ignore-whitespace)))
     (mapcan #'get-entry-ranges entries)))
 
-(defparameter +pprint-log-option-spec+
-  '((("client" #\c) :type boolean :optional t :documentation "Sort by client")
-    (("reverse" #\r) :type boolean :optional t :documentation "Reverse sort")
-    (("ignore-whitespace" #\W) :type boolean :optional t :documentation "Ignore whitespace errors in input")
-    (("interactive" #\i) :type boolean :optional t :documentation "Run Interactively")
-    (("version" #\v) :type boolean :optional t :documentation "Version")
-    (("status" #\s) :type boolean :optional t
-                    :documentation "Print a summary of the hours worked and the prices")
-    (("help" #\h) :type boolean :optional t :documentation "show help")))
-
-(defparameter *version* "0:4")
-
-(define-message version-message (version)
-  (:own-line () "timesheet file parser, version " :str))
-
-(defun show-version ()
-  (version-message t *version*))
-
-(defun show-help ()
-  (show-version)
-  (command-line-arguments:show-option-help +pprint-log-option-spec+ :sort-names t))
-
 (defun sort-by-date (results)
   (stable-sort results #'local-time:timestamp<
                :key (alambda (apply #'local-time:encode-timestamp
@@ -271,13 +249,4 @@
            (*default-time-sheet-file*
              (ubiquitous:defaulted-value #p"~/time.md" :timesheet :file)))
        ,@body)))
-
-(defun pprint-log-main (argv)
-  (with-timesheet-configuration ()
-    (command-line-arguments:handle-command-line
-      +pprint-log-option-spec+
-      'pprint-log
-      :command-line (cdr argv)
-      :name "timesheet"
-      :rest-arity t)))
 

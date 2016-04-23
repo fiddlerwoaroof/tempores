@@ -8,13 +8,13 @@
   :depends-on (#:alexandria
                #:anaphora
                #:cells
+               #:net.didierverna.clon
                #:command-line-arguments
                #:drakma
                #:format-string-builder
                #:fwoar.lisputils
                #:local-time-duration
                #:lquery
-               #:manardb
                #:ningle
                #:serapeum
                #:should-test

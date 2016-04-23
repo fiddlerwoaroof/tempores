@@ -14,6 +14,20 @@ a record do not begin with either a single tab or three spaces) and it detects i
 Additionally, if run in interactive mode `-i`, when it discovers invalid input, it will prompt for a replacement
 and attempt to correct the error.  Also, with `-W`, it should be able to recover from whitespace errors on its own.
 
+## Install:
+
+Just do this:
+
+```
+CC=`which gcc` \
+sbcl --no-userinit \
+     --load ~/quicklisp/setup.lisp \
+     --eval '(push (truename ".") asdf:*central-registry*)' \
+     --eval '(ql:quickload :timesheet)'  \
+     --load timesheet-client.lisp \
+     --eval '(timesheet.cli::make-executable)'
+```
+
 ## Todo:
 
 - Expand error handling
@@ -24,15 +38,18 @@ and attempt to correct the error.  Also, with `-W`, it should be able to recover
 ## Examples:
 
 ```
-% ./timesheet -h
-timesheet file parser, version 0:4
--c --client                     boolean  Sort by client
--r --reverse                    boolean  Reverse sort
--W --ignore-whitespace          boolean  Ignore whitespace errors in input
--i --interactive                boolean  Run Interactively
--v --version                    boolean  Version
--s --status                     boolean  Print a summary of the hours worked and the prices
--h --help                       boolean  show help
+Usage: timesheet [-crWisvh] [OPTIONS] TIMESHEETS ...
+
+A program for managing logs of hours worked
+Main actions
+  -c, --client                Sort records by client
+  -r, --reverse               Reverse the sort direction
+  -W, --ignore-whitespace     Ignore whitespace errors in input
+  -i, --interactive           Run interactively
+  -s, --status                Print a short summary of work status
+Other options
+  -v, --version               Show the program version
+  -h, --help                  Show this help
 ```
 
 By default, it orders the log by dates.  With the `-r` option, it displays the dates in descending order:

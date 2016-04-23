@@ -29,3 +29,9 @@
   (:use #:cl #:anaphora #:alexandria #:serapeum #:fwoar.lisputils
         #:timesheet.parser)
   (:import-from #:format-string-builder #:define-message))
+
+(defpackage #:timesheet.cli
+  (:use #:cl #:anaphora #:alexandria #:serapeum #:fwoar.lisputils
+        #:timesheet.parser #:timesheet #:net.didierverna.clon)
+  (:import-from #:format-string-builder #:define-message))
+
