@@ -28,10 +28,17 @@
 (defpackage #:timesheet
   (:use #:cl #:anaphora #:alexandria #:serapeum #:fwoar.lisputils
         #:timesheet.parser)
-  (:import-from #:format-string-builder #:define-message))
+  (:import-from #:format-string-builder #:define-message)
+  (:export #:with-timesheet-configuration #:pprint-log #:get-log #:timesheet
+           #:*default-time-sheet-file* #:*rate* #:group-by-class #:print-status
+           #:print-entries #:autocorrect-warning))
 
 (defpackage #:timesheet.cli
   (:use #:cl #:anaphora #:alexandria #:serapeum #:fwoar.lisputils
         #:timesheet.parser #:timesheet #:net.didierverna.clon)
   (:import-from #:format-string-builder #:define-message))
 
+(in-package #:timesheet)
+
+(defvar *default-time-sheet-file*)
+(defvar *rate*)
