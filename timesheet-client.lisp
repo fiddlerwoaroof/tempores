@@ -1,40 +1,11 @@
 (in-package #:timesheet.cli)
 
 (defparameter *interactive* nil)
-(defparameter *version* "0:5")
-
-(defsynopsis (:postfix "TIMESHEETS ...")
-  (text :contents "A program for managing logs of hours worked")
-  (group (:header "Display options")
-         (flag :short-name "s" :long-name "status"
-               :description "Print a short summary of work status")
-         (flag :short-name "W"
-               :long-name "ignore-whitespace"
-               :description "Ignore whitespace errors in input")
-         (flag :short-name "i" :long-name "interactive"
-               :description "Run interactively"))
-  (group (:header "Sort options")
-         (flag :short-name "r"
-               :long-name "reverse"
-               :description "Reverse the sort direction")
-         (flag :short-name "c"
-               :long-name "client"
-               :description "Sort records by client"))
-  (group (:header "Generic options")
-         (flag :short-name "v" :long-name "version"
-               :description "Show the program version")
-         (flag :short-name "h" :long-name "help"
-               :description "Show this help")))
-
-(define-message version-message (version)
-  (:own-line () "timesheet file parser, version " :str))
+(defparameter *version* "0:6")
 
 (defun unroll-date (date-obj)
   (with-slots (year month day) date-obj
     (list day month year)))
-
-(defun show-version ()
-  (version-message t *version*))
 
 (defun split-time (time)
   (let ((time-parts (split-sequence #\: time)))
@@ -120,7 +91,7 @@
   (flet ((parse-string (string)
            (handler-bind ((timesheet.parser::invalid-whitespace
                             (handle-invalid-whitespace ignore-whitespace-errors))
-                          (parse-error #'handle-invalid-time) 
+                          (parse-error #'handle-invalid-time)
                           (timesheet.parser::invalid-time #'handle-invalid-time) )
              (smug:parse (timesheet.parser::.date-records) string))))
     (multiple-value-bind (parsed leftovers) (parse-string (read-file-into-string file))
@@ -143,17 +114,32 @@
                :key (alambda (apply #'local-time:encode-timestamp
                                     (list* 0 0 0 0 (unroll-date (date it)))))))
 
+(defun maybe-nreverse (flag list)
+  (if flag
+    (nreverse list)
+    list))
+
+(define-modify-macro maybe-nreversef (flag)
+                     (lambda (place flag)
+                       (maybe-nreverse flag place)))
+
+(defun list-without-nulls (&rest items)
+  (loop for item in items
+        when item collect item))
+
 (defun pprint-log (args &key client reverse status ignore-whitespace interactive)
-  (flet ((sort-results (results &optional (client client))
-           (setf results (sort-by-date results))
-           (when client
-             (setf results (stable-sort results #'string-lessp :key #'client)))
-           (when reverse
-             (setf results (nreverse results)))
-           results)
-         (get-logs (files)
-           (loop for file in (ensure-list files)
-                 append (timesheet:get-log file ignore-whitespace)) ))
+  (labels ((sort-func (client)
+             (apply #'compose
+                    (list-without-nulls
+                      (when reverse #'nreverse)   
+                      (when client
+                        (plambda (stable-sort :1 #'string-lessp :key #'client)))
+                      #'sort-by-date)))
+           (sort-results (results &optional (client client))
+             (funcall (sort-func client) results))
+           (get-logs (files)
+             (loop for file in (ensure-list files)
+                   append (timesheet:get-log file ignore-whitespace)) ))
 
     (let ((*default-time-sheet-file* (or args *default-time-sheet-file*))
           (*interactive* interactive)
@@ -166,6 +152,52 @@
                 (incomplete-results (sort-results incomplete-ranges t)))
             (pprint-results complete-results incomplete-results status)))))))
 
+(defsynopsis (:postfix "TIMESHEETS ...")
+  (text :contents "A program for managing logs of hours worked")
+  (group (:header "Display options")
+         (flag :short-name "s" :long-name "status"
+               :description "Print a short summary of work status")
+         (flag :short-name "W"
+               :long-name "ignore-whitespace"
+               :description "Ignore whitespace errors in input")
+         (flag :short-name "i" :long-name "interactive"
+               :description "Run interactively"))
+  (group (:header "Sort options")
+         (flag :short-name "r"
+               :long-name "reverse"
+               :description "Reverse the sort direction")
+         (flag :short-name "c"
+               :long-name "client"
+               :description "Sort records by client"))
+  (group (:header "Freshbooks")
+         (flag :long-name "post-hours"
+               :description "Post hours to freshbooks (requires manual setup of Freshbooks keys)"))
+  (group (:header "Self-test options")
+         (flag :long-name "run-tests"
+               :description "Run the tests") 
+         (enum :long-name "output-style"
+               :description "The kind of output to produce"
+               :default-value :normal
+               :enum '(:xunit :normal)))
+  (group (:header "Generic options")
+         (flag :short-name "v" :long-name "version"
+               :description "Show the program version")
+         (flag :short-name "h" :long-name "help"
+               :description "Show this help")))
+
+(eval-when (:load-toplevel :compile-toplevel :execute)
+  (define-message version-message (version)
+    (:own-line () "timesheet file parser, version " :str)))
+
+(defun show-version ()
+  (version-message t *version*))
+
+(defun tests-main (&optional (output-style nil output-style-p))
+  (let ((should-test:*verbose* t))
+    (ecase output-style
+      (:xunit (should-test:test-for-xunit *standard-output* :package :timesheet.parser))
+      (:normal (should-test:test :package :timesheet.parser)))))
+
 (defun pprint-log-main ()
   (make-context)
   (tagbody
@@ -174,6 +206,12 @@
       (cond
         ((getopt :long-name "help") (help))
         ((getopt :long-name "version") (show-version))
+        ((getopt :long-name "post-hours") (let ((*print-pretty* nil))
+                                            (loop for item in (timesheet.freshbooks::post-time-entries-main)
+                                                  do (format t "Posted an entry")
+                                                  do (plump:serialize item)
+                                                  finally (format t "Don't forget to archive time file."))))
+        ((getopt :long-name "run-tests") (tests-main (getopt :long-name "output-style")))
         (t (with-timesheet-configuration ()
              (pprint-log
                (remainder)

@@ -16,6 +16,7 @@
                #:local-time-duration
                #:lquery
                #:ningle
+               #:positional-lambda
                #:serapeum
                #:should-test
                #:smug
@@ -30,6 +31,7 @@
                (:file "parser")
                (:file "mvc")
                (:file "main-classes")  
+               (:file "freshbooks")  
                (:file "timesheet")))
 
 

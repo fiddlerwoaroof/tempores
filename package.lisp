@@ -35,7 +35,8 @@
 
 (defpackage #:timesheet.cli
   (:use #:cl #:anaphora #:alexandria #:serapeum #:fwoar.lisputils
-        #:timesheet.parser #:timesheet #:net.didierverna.clon)
+        #:timesheet.parser #:timesheet #:net.didierverna.clon
+        #:plambda)
   (:import-from #:format-string-builder #:define-message))
 
 (in-package #:timesheet)

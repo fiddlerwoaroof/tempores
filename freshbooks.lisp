@@ -14,7 +14,14 @@
   (ubiquitous:value :freshbooks :api-key)
   (ubiquitous:value :freshbooks :endpoint))
 
-(xhtmlambda::def-element <::request)
+(eval-when (:load-toplevel :compile-toplevel :execute)
+  (xhtmlambda::def-element <::request) 
+  (xhtmlambda::def-element <::time_entry)
+  (xhtmlambda::def-element <::project_id)
+  (xhtmlambda::def-element <::task_id)
+  (xhtmlambda::def-element <::hours)
+  (xhtmlambda::def-element <::notes)
+  (xhtmlambda::def-element <::date))
 
 (defun post-to-endpoint (xml)
   (let ((drakma:*text-content-types* (acons "application" "xml" drakma:*text-content-types*)))
@@ -129,13 +136,6 @@
                                        slot-name
                                        (node)))))))
 
-(xhtmlambda::def-element <::time_entry)
-(xhtmlambda::def-element <::project_id)
-(xhtmlambda::def-element <::task_id)
-(xhtmlambda::def-element <::hours)
-(xhtmlambda::def-element <::notes)
-(xhtmlambda::def-element <::date)
-
 (defun get-project (name)
   (let ((projects (sort (map 'vector
                              (alambda (cons (string-downcase it) it))
@@ -178,7 +178,7 @@
           for note = (timesheet::memo entry)
           for hours = (timesheet::duration entry)
           for fmt-date = (format nil "~:@{~2,'0d-~2,'0d-~2,'0d 00:00:00~}"
-                                 (reverse (timesheet::unroll-date date)))
+                                 (reverse (timesheet.cli::unroll-date date)))
           collect (make-time-entry project task-id fmt-date hours note))))
 
 (defun make-entry-updates ()
