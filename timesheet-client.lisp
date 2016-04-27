@@ -1,7 +1,7 @@
 (in-package #:timesheet.cli)
 
 (defparameter *interactive* nil)
-(defparameter *version* "0:6")
+(defparameter *version* "0:7")
 
 (defun unroll-date (date-obj)
   (with-slots (year month day) date-obj
@@ -131,7 +131,7 @@
   (labels ((sort-func (client)
              (apply #'compose
                     (list-without-nulls
-                      (when reverse #'nreverse)   
+                      (when reverse #'nreverse)
                       (when client
                         (plambda (stable-sort :1 #'string-lessp :key #'client)))
                       #'sort-by-date)))
@@ -174,7 +174,7 @@
                :description "Post hours to freshbooks (requires manual setup of Freshbooks keys)"))
   (group (:header "Self-test options")
          (flag :long-name "run-tests"
-               :description "Run the tests") 
+               :description "Run the tests")
          (enum :long-name "output-style"
                :description "The kind of output to produce"
                :default-value :normal

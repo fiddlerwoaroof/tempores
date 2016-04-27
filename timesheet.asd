@@ -29,6 +29,7 @@
                (:file "generic-equals")
                (:file "macros")
                (:file "parser")
+               (:file "test-parser")
                (:file "mvc")
                (:file "main-classes")  
                (:file "freshbooks")  

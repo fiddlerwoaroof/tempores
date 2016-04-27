@@ -38,16 +38,23 @@ sbcl --no-userinit \
 ## Examples:
 
 ```
-Usage: timesheet [-crWisvh] [OPTIONS] TIMESHEETS ...
+Usage: timesheet [-sWircvh] [OPTIONS] TIMESHEETS ...
 
 A program for managing logs of hours worked
-Main actions
-  -c, --client                Sort records by client
-  -r, --reverse               Reverse the sort direction
+Display options
+  -s, --status                Print a short summary of work status
   -W, --ignore-whitespace     Ignore whitespace errors in input
   -i, --interactive           Run interactively
-  -s, --status                Print a short summary of work status
-Other options
+Sort options
+  -r, --reverse               Reverse the sort direction
+  -c, --client                Sort records by client
+Freshbooks
+  --post-hours                Post hours to freshbooks (requires manual setup of Freshbooks keys)
+Self-test options
+  --run-tests                 Run the tests
+  --output-style=TYPE         The kind of output to produce
+                              Default: normal
+Generic options
   -v, --version               Show the program version
   -h, --help                  Show this help
 ```
