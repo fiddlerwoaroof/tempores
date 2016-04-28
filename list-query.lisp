@@ -1,9 +1,9 @@
 
-(defpackage #:timesheet.ql
+(defpackage #:tempores.ql
   (:use #:cl #:anaphora #:alexandria #:serapeum #:fwoar.lisputils
-        #:timesheet.macros #:generic-equals))
+        #:tempores.macros #:generic-equals))
 
-(in-package #:timesheet.ql)
+(in-package #:tempores.ql)
 
 (defstruct (ql-clause (:type vector))
   clause-type clause-parts)

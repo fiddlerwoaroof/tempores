@@ -1,4 +1,4 @@
-(in-package #:timesheet)
+(in-package #:tempores)
 
 (defclass status-calculator ()
   ((rate :initarg :rate :accessor rate)

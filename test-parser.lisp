@@ -1,4 +1,4 @@
-(in-package #:timesheet.parser)
+(in-package #:tempores.parser)
 
 ;; This will help make sure everything is consumed when
 ;; we don't care about the parser's output.

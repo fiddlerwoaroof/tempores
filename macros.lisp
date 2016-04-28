@@ -1,4 +1,4 @@
-(in-package #:timesheet.macros)
+(in-package #:tempores.macros)
 
 (defmacro make-equality (class &body test-defs)
   `(defmethod == ((a ,class) (b ,class))

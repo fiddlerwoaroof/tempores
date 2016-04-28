@@ -1,6 +1,6 @@
 #|
 
-(in-package :timesheet.mvc)
+(in-package :tempores.mvc)
 
 (defclass model () ())
 

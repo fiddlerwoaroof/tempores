@@ -1,8 +1,8 @@
 (in-package :asdf-user)
-;;;; timesheet.asd
+;;;; tempores.asd
 
-(asdf:defsystem #:timesheet
-  :description "Describe timesheet here"
+(asdf:defsystem #:tempores
+  :description "Describe tempores here"
   :author "fiddlerwoaroof"
   :license "MIT"
   :depends-on (#:alexandria
@@ -33,7 +33,7 @@
                (:file "mvc")
                (:file "main-classes")  
                (:file "freshbooks")  
-               (:file "timesheet")))
+               (:file "tempores")))
 
 
 ;; vim: set ft=lisp:

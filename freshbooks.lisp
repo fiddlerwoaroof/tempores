@@ -1,16 +1,16 @@
-(defpackage #:timesheet.freshbooks
+(defpackage #:tempores.freshbooks
   (:use #:cl #:anaphora #:alexandria #:serapeum #:fwoar.lisputils
-        #:timesheet.parser)
-  (:import-from #:timesheet #:timesheet)
-  (:export #:timesheet))
+        #:tempores.parser)
+  (:import-from #:tempores #:tempores)
+  (:export #:tempores))
 
-(in-package :timesheet.freshbooks)
+(in-package :tempores.freshbooks)
 
 (defvar *api-key*)
 (defvar *endpoint*)
 
 (defun init ()
-  (ubiquitous:restore 'timesheet)
+  (ubiquitous:restore 'tempores)
   (ubiquitous:value :freshbooks :api-key)
   (ubiquitous:value :freshbooks :endpoint))
 
@@ -76,13 +76,13 @@
   project_id name description rate bill_method client_id hour_budget
   tasks staff)
 
-(timesheet.macros:define-printer (task s)
+(tempores.macros:define-printer (task s)
   ((with-slots (task_id name) task
     (format s "~i~a (~a):" name task_id)))
   ((with-slots (task_id name) task
     (format s "~a (~a)" name task_id))))
 
-(timesheet.macros:define-printer (project s)
+(tempores.macros:define-printer (project s)
   ((with-slots (project_id name tasks) project
     (format s "~i~a (~a):~%~{~a~%~}" name project_id tasks)))
   ((with-slots (project_id name tasks) project
@@ -170,19 +170,19 @@
                  (hash-table-alist *task-registry*))))
     (cdr (assoc name tasks :test #'string-equal))))
 
-(defun timesheet-to-entries (timesheet-log)
+(defun tempores-to-entries (tempores-log)
   (let ((task-id (get-task-by-name "General")))
-    (loop for entry in timesheet-log
-          for date = (timesheet::date entry)
-          for project = (timesheet::client entry)
-          for note = (timesheet::memo entry)
-          for hours = (timesheet::duration entry)
+    (loop for entry in tempores-log
+          for date = (tempores::date entry)
+          for project = (tempores::client entry)
+          for note = (tempores::memo entry)
+          for hours = (tempores::duration entry)
           for fmt-date = (format nil "~:@{~2,'0d-~2,'0d-~2,'0d 00:00:00~}"
-                                 (reverse (timesheet.cli::unroll-date date)))
+                                 (reverse (tempores.cli::unroll-date date)))
           collect (make-time-entry project task-id fmt-date hours note))))
 
 (defun make-entry-updates ()
-  (let ((updates (timesheet-to-entries (timesheet::get-log #p"/home/edwlan/bucket/time.md"))))
+  (let ((updates (tempores-to-entries (tempores::get-log #p"/home/edwlan/bucket/time.md"))))
     (loop for update in updates
           collect (<:request (:method "time_entry.create") update))))
 
