@@ -24,7 +24,7 @@
 
   (defclass time-mod ()
     ((amount :initarg :amount)
-     (unit :initarg :unit))))
+     (unit :initarg :unit :type (member '(:hour :minute))))))
 
 (defgeneric unparse (token &optional stream)
   (:method ((token time-mod) &optional stream)
@@ -60,7 +60,7 @@
 (make-equality date-obj
   (day-of-week ==)
   (year) (month) (day))
-(make-simple-equality time-mod :test equal)
+(make-simple-equality time-mod :test eql)
 
 
 (defun make-day-entry (date records)
@@ -70,15 +70,18 @@
   (make-instance 'time-record :client (car memo) :ranges ranges :memo (cadr memo)))
 
 (defun make-time-mod (amnt unt)
-  (setf unt (string-downcase unt))
-  (when (string= "min" unt)
-    (setf unt "mins"))
-  (when (string= "hr" unt)
-    (setf unt "hours"))
-  (alet (make-instance 'time-mod)
-    (with-slots (amount unit) it
-      (setf amount amnt unit unt)
-      it)))
+  (setf unt (string-upcase unt))
+  (make-instance 'time-mod
+                 :amount amnt
+                 :unit (string-ecase unt
+                         ("min" :MINUTE)
+                         ("mins" :MINUTE)
+                         ("minutes" :MINUTE)
+                         ("minute" :MINUTE)
+                         ("hr" :HOUR)
+                         ("hrs" :HOUR)
+                         ("hour" :HOUR)
+                         ("hours" :HOUR))))
 
 (define-condition parsing-error (parse-error)
   ((failed-chunk :initarg :failed-chunk :reader failed-chunk)))

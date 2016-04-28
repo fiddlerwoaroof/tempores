@@ -5,6 +5,11 @@
    (total-hours :initform 0 :initarg :total-hours :accessor total-hours)
    (client-totals :initarg :client-totals :accessor client-totals :initform (make-hash-table :test 'equalp))))
 
+(defclass report ()
+  ((status-calculator :initarg :status-calculator :accessor status-calculator)
+   (status-lines :initform nil :accessor :status-lines)
+   (entries :initform nil :accessor :entries)))
+
 (defun make-status-calculator (rate)
   (make-instance 'status-calculator :rate rate))
 

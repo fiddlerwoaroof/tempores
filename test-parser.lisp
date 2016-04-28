@@ -212,6 +212,31 @@
   (st:should be == "   "
              (smug:parse (.initial-space) "   ")))
 
+(st:deftest make-time-mod ()
+  (st:should be ==
+             (make-instance 'time-mod :unit :hour :amount 0) 
+             (make-time-mod 0 "hours"))
+
+  (st:should be ==
+             (make-time-mod 0 "hours")
+             (make-time-mod 0 "hours"))
+
+  (st:should be ==
+             (make-time-mod 0 "hr")
+             (make-time-mod 0 "hours"))
+
+  (st:should be ==
+             (make-time-mod 0 "hrs")
+             (make-time-mod 0 "hours"))
+
+  (st:should be ==
+             (make-time-mod 0 "min")
+             (make-time-mod 0 "minutes"))
+
+  (st:should be ==
+             (make-time-mod 0 "mins")
+             (make-time-mod 0 "minutes")))
+
 (st:deftest date-test ()
   (st:should be == nil
              (caar (smug:run (.date) "Monday 2020/01-01")))
