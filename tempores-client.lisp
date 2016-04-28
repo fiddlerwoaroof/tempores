@@ -193,6 +193,7 @@
   (version-message t *version*))
 
 (defun tests-main (&optional (output-style nil output-style-p))
+  (declare (ignorable output-style-p))
   (let ((should-test:*verbose* t))
     (ecase output-style
       (:xunit (should-test:test-for-xunit *standard-output* :package :tempores.parser))
