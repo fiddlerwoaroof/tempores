@@ -24,11 +24,7 @@
 (defun calculate-ranges (ranges date)
   (declare (optimize (debug 3)))
   (labels ((time-mod-unit-keyword (time-mod)
-             (make-keyword
-               (string-upcase
-                 (string-case (string-downcase (slot-value time-mod 'unit))
-                   ("mins" "minute")
-                   (t      "hour")))))
+             (slot-value time-mod 'unit))
            (make-mod (mod)
              (when mod
                (let ((unit (time-mod-unit-keyword mod))
