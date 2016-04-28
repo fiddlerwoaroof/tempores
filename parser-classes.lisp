@@ -1,3 +1,5 @@
+(in-package #:tempores.parser)
+
 (eval-when (:compile-toplevel :load-toplevel :execute)
   ;; make sure these classes am ready to go!
   (defclass day-entry ()

@@ -61,20 +61,6 @@
                       . ""))
              (run (.range-list) (format nil "00:00:00--01:00:00, 02:00:00--~%")))) ;; space allowed between ranges
 
-(st:deftest time-range-test ()
-  (st:should be == '(("--" . ""))
-             (run (.time-range-separator) "--"))
-  (st:should be == nil
-             (run (.time-range) "30:00:00"))
-  (st:should be == nil
-             (run (.time-range) "00:00:00"))
-  (st:should be == nil
-             (run (.time-range) "00:00:00--,01:00:00--"))
-  (st:should be == '((((0 0 0)) . ""))
-             (run (.time-range) "00:00:00--"))
-  (st:should be == '((((0 0 0) (1 0 0)) . ""))
-             (run (.time-range) "00:00:00--01:00:00")))
-
 (st:deftest time-test ()
   (st:should signal invalid-time
              (run (.time) "00:0a:00"))
@@ -169,6 +155,19 @@
              (run (.prog1 (.month) (.not (.item))) "01")))
 
 (st:deftest time-range-test ()
+  (st:should be == '(("--" . ""))
+             (run (.time-range-separator) "--"))
+  (st:should be == nil
+             (run (.time-range) "30:00:00"))
+  (st:should be == nil
+             (run (.time-range) "00:00:00"))
+  (st:should be == nil
+             (run (.time-range) "00:00:00--,01:00:00--"))
+  (st:should be == '((((0 0 0)) . ""))
+             (run (.time-range) "00:00:00--"))
+  (st:should be == '((((0 0 0) (1 0 0)) . ""))
+             (run (.time-range) "00:00:00--01:00:00")) 
+
   (st:should be == nil
              (run (.time-range) "00:00:00"))
   (st:should be == `(( (,(make-time-obj 0 0 0)) . ""))
@@ -192,7 +191,7 @@
   (st:should be == '((("asdf" "asdf") . ""))
              (run (.memo-line) (format nil "   asdf: asdf"))))
 
-(st:deftest initial-space ()
+(st:deftest initial-space-test ()
   (st:should signal invalid-whitespace
              (smug:parse (.initial-space) "    "))
   (st:should signal invalid-whitespace
@@ -212,7 +211,7 @@
   (st:should be == "   "
              (smug:parse (.initial-space) "   ")))
 
-(st:deftest make-time-mod ()
+(st:deftest make-time-mod-test ()
   (st:should be ==
              (make-instance 'time-mod :unit :hour :amount 0) 
              (make-time-mod 0 "hours"))
@@ -247,7 +246,7 @@
   (st:should be == (make-date-obj "Monday" 2020 01 01)
              (caar (smug:run (.date) "Monday 2020/01/01"))))
 
-(st:deftest generic-eq ()
+(st:deftest generic-eq-test ()
   "Note: this really should be in the equality package with the name ==
    should-test only checks tests for _internal_ symbols."
   (st:should be eql t (== #\1 #\1))
