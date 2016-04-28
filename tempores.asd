@@ -28,6 +28,7 @@
   :components ((:file "package")
                (:file "generic-equals")
                (:file "macros")
+               (:file "parser-classes")
                (:file "parser")
                (:file "test-parser")
                (:file "mvc")
