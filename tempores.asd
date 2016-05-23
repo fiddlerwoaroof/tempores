@@ -34,7 +34,8 @@
                (:file "mvc")
                (:file "main-classes")  
                (:file "freshbooks")  
-               (:file "tempores")))
+               (:file "tempores")  
+               (:file "package-grapher")))
 
 
 ;; vim: set ft=lisp:

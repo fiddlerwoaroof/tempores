@@ -32,7 +32,7 @@
                                     (format s "~w" xml)))))
 
 (defun parsed-api-call (xml)
-  (plump-parser:parse (post-to-endpoint xml)))
+  (plump:parse (post-to-endpoint xml)))
 
 (defmacro define-api-call (name (&rest args) method-name &body elements)
   `(defun ,name ,args

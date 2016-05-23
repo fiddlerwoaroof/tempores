@@ -173,6 +173,8 @@
          (flag :long-name "post-hours"
                :description "Post hours to freshbooks (requires manual setup of Freshbooks keys)"))
   (group (:header "Self-test options")
+         (flag :long-name "dependencies"
+               :description "Graph the dependencies of this project")
          (flag :long-name "run-tests"
                :description "Run the tests")
          (enum :long-name "output-style"
@@ -207,6 +209,7 @@
       (cond
         ((getopt :long-name "help") (help))
         ((getopt :long-name "version") (show-version))
+        ((getopt :long-name "dependencies") (format t (tempores.package-grapher::graph-tempores-packages)))
         ((getopt :long-name "post-hours") (let ((*print-pretty* nil))
                                             (loop for item in (tempores.freshbooks::post-time-entries-main)
                                                   do (format t "Posted an entry")

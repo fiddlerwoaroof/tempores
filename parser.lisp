@@ -153,7 +153,7 @@
           (extra-space (.optional (.whitespace))))
     (if extra-space
       (error 'invalid-whitespace :failed-chunk extra-space)
-      (.fail))))  
+      (.fail))))
 
 (defun .initial-space ()
   (.or (.extra-whitespace)
@@ -281,10 +281,6 @@
 
 (defun .parse-all-records ()
   (.prog1 (.date-records) (.not (.item))))
-
-#|(defun parse (data)|#
-#|  (alet (run (.date-records) data)|#
-#|    (values (caar it) (cdar it))))|#
 
 ;; This will help make sure everything is consumed when
 ;; we don't care about the parser's output.
