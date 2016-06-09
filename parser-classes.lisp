@@ -32,7 +32,14 @@
      (format stream "~@d~a" amount unit)))
   (:method ((token date-obj)  &optional stream)
    (with-slots (day-of-week year month day) token
-     (format stream "~a ~2,'0d-~2,'0d-~2,'0d" day-of-week year month day)))
+     (let ((day-of-week (format nil "~aday"
+                                (string-case (string-downcase day-of-week)
+                                  ("tue" (setf day-of-week "Tues"))
+                                  ("wed" (setf day-of-week "Wednes"))
+                                  ("thu" (setf day-of-week "Thurs"))
+                                  ("sat" (setf day-of-week "Satur"))
+                                  (t (string-capitalize day-of-week))))))
+       (format stream "~a ~2,'0d-~2,'0d-~2,'0d" day-of-week year month day))))
   (:method ((token time-obj) &optional stream)
    (with-slots (hour minute second) token
      (format stream "~2,'0d:~2,'0d:~2,'0d" hour minute second)))

@@ -181,6 +181,10 @@
                :description "The kind of output to produce"
                :default-value :normal
                :enum '(:xunit :normal)))
+  (group (:header "Reformat options")
+         (flag :long-name "reformat-file"
+               :short-name "f"
+               :description "Read the current timesheet file and dump, correcting any whitespace or formatting errors"))
   (group (:header "Generic options")
          (flag :short-name "v" :long-name "version"
                :description "Show the program version")
@@ -201,6 +205,13 @@
       (:xunit (should-test:test-for-xunit *standard-output* :package :tempores.parser))
       (:normal (should-test:test :package :tempores.parser)))))
 
+(defun reformat-main ()
+  (with-tempores-configuration ()
+    (format t "~{~a~}"
+            (mapcar #'unparse
+                    (parse-file *default-time-sheet-file*
+                                t)))))
+
 (defun pprint-log-main ()
   (make-context)
   (tagbody
@@ -216,6 +227,7 @@
                                                   do (plump:serialize item)
                                                   finally (format t "Don't forget to archive time file."))))
         ((getopt :long-name "run-tests") (tests-main (getopt :long-name "output-style")))
+        ((getopt :long-name "reformat-file") (reformat-main))
         (t (with-tempores-configuration ()
              (pprint-log
                (remainder)
